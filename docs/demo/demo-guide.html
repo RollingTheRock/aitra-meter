@@ -459,30 +459,40 @@ aitra_measurement_cv &gt; 0.03</code></pre>
 
 <!-- ======================================================= 7 -->
 <section>
-  <div class="sec-head"><span class="sec-num">7</span><h2>FAQ(演示现场真被问过的)</h2></div>
+  <div class="sec-head"><span class="sec-num">7</span><h2>FAQ — 开源大会观众问答备答</h2></div>
+  <p class="soft">按大会现场最可能被问到的顺序整理;每条答案控制在讲解者能背下来的长度,可直接用于 booth Q&amp;A。</p>
 
-  <h3>数字与口径</h3>
+  <h3>项目定位</h3>
   <div class="table-wrap"><table>
     <tr><th>问</th><th>答</th></tr>
-    <tr><td>0.09 J/token 这么低,怎么算出来的?</td><td>J/token ≈ 功率 ÷ 吞吐。实测例:199 W ÷ 2294 token/s = 0.087。高并发下功率几乎不变、吞吐翻数十倍,单价自然骤降——"大巴满载,人均油耗暴跌"。</td></tr>
-    <tr><td>为什么现在测的数值比之前低/高很多?</td><td>J/token 是<strong>模型 × 负载</strong>的联合属性,不是模型常数。基线(并发≈1)是保守上界,满载是生产下界,两者相差 6–23 倍(小模型差得更多)。引用数字必须带负载上下文。</td></tr>
-    <tr><td>停掉流量后为什么显示 0?数据还在采吗?</td><td>0 是刻意语义:没有产出就没有"每字能耗",显示旧值反而误导。<strong>采集永不停</strong>——功率面板持续显示占卡静息的真实瓦数。流量恢复后约 10 秒回真值。</td></tr>
-    <tr><td>看板数字要么有值要么 0,为什么没有中间态?</td><td>窗口产出不足 30 token 时(断流边界、深度排队),几个 token 除出来的单价是噪声,一律按静默处理。口径:<strong>非零即可信</strong>。</td></tr>
-    <tr><td>两个模型挤同一张 GPU 能分开测吗?</td><td>不能——硬件计数器只到整卡粒度。本环境一卡一模型是精确测量;共享卡(MPS/分时)会退化为按 token 比例分摊并明确打标。MIG 切片计量在路上(PR #71)。</td></tr>
-    <tr><td>测的是真数据吗?</td><td>能耗与 token 全部实测(DCGM 硬件计数器 + vLLM 计数器)。流量是合成的(随机数据集,长度精确可控)或真实的(ShareGPT 9.4 万条真人对话),控制台可切换。</td></tr>
-    <tr><td>平台(aitra)的 Energy 页为什么看不到这些模型?</td><td>两层视角:平台页只显示<strong>经平台部署</strong>的模型(读平台数据库);Meter 是基础设施层,谁持卡测谁——平台自己部署的模型也会被 Meter 自动发现(现场可演示)。</td></tr>
-    <tr><td>CV 是什么?怎么看板上没有了?</td><td>变异系数——数字稳定性门(&lt;3% 可信)。按演示反馈从面板移除,但指标仍在采集,PromQL 查 <code>aitra_measurement_cv</code> 随时可看。</td></tr>
+    <tr><td>Aitra Meter 是什么?解决什么问题?</td><td>一个开源的 <strong>AI 推理能耗计量器</strong>(Prometheus exporter 形态):在多模型共享 GPU 集群里,把每一焦耳精确记到具体模型头上,输出 <strong>J/token(每 token 焦耳)</strong>及派生的成本/碳排指标。解决的是"AI 电费只有一张总账单,没人知道哪个模型花的"这个盲区。</td></tr>
+    <tr><td>和 Kepler / DCGM-exporter / Scaphandre 有什么区别?</td><td>它们输出<strong>硬件或容器维度</strong>的功耗;Aitra Meter 在其上补了关键一层:<strong>按模型归因 + 与 token 产出对齐</strong>——分子(该模型持有的 GPU 的实测能耗)和分母(该模型自己产出的 token)都按模型隔离,得到推理领域真正可比的效率单位。事实上我们把 DCGM 当数据源,与 Kepler 的集成在路线图上(issue #48)。</td></tr>
+    <tr><td>为什么选 J/token 这个单位?</td><td>它是推理能效的"每公里油耗":跨模型、跨硬件、跨负载可比,直接乘电价/碳强度就是钱和碳。我们同时在推动 OTel GenAI 语义约定收录 <code>gen_ai.infrastructure.energy.*</code>(issue #38),希望它成为行业通用口径。</td></tr>
+    <tr><td>项目状态和许可?</td><td>Apache-2.0,仓库 <code>github.com/aitra-ai/aitra-meter</code>,当前 v0.8 线,Helm 一键部署。欢迎 issue/PR——展台演示跑的就是主干代码。</td></tr>
   </table></div>
 
-  <h3>访问与运维</h3>
+  <h3>技术原理</h3>
   <div class="table-wrap"><table>
     <tr><th>问</th><th>答</th></tr>
-    <tr><td>页面偶尔打不开/资源 502?</td><td>先刷新一次;若持续,多半是服务器重启后隧道 URL 轮换了——按 §1.3 的"服务器重启后"三步恢复。</td></tr>
-    <tr><td>/board 页面空白或无数据?</td><td>确认地址带 <code>/board</code> 前缀(内网也是 <code>30851/board</code>);数据全为 0 且 idle 拉满 = 底噪流量关着,控制台开回即可。</td></tr>
-    <tr><td>控制台提示 401 / 密钥失效?</td><td>访问密钥在集群 Secret <code>demo-control-key</code>;换钥后旧链接立即失效,用新 <code>?k=</code> 重新打开(7 天 cookie)。</td></tr>
-    <tr><td>控制台任务显示 failed?</td><td>通常是撞了硬时限(防跑飞的设计上限)。选更长时长或"持续"模式;扫描场景已按任务形态自动配量。</td></tr>
-    <tr><td>怎么快速回到"演示开场"状态?</td><td>控制台:全部停止 → 打开底噪 → 等 1 分钟,8 块 tile 回基线。</td></tr>
-    <tr><td>历史曲线能保留多久?</td><td>Prometheus 保留 2 天;要长期留存请截图或导出 CSV(看板 chargeback 区块自带导出)。</td></tr>
+    <tr><td>能耗怎么归因到单个模型?</td><td>三步:①从 kubelet device-plugin checkpoint 读"哪个 pod 持有哪几张 GPU"(K8s 本来就记录,零配置);②从 DCGM 读每张 GPU 的<strong>硬件累计能耗计数器</strong>做窗口差分;③"卡按持有 pod 分组、求和只在组内"——单卡模型是精确测量,TP 多卡模型恰好求和参与卡,空闲卡单独记 idle,永不摊派。</td></tr>
+    <tr><td>需要改我的模型或推理代码吗?</td><td>零侵入。agent 自动发现持卡 pod、抓引擎自带的 /metrics(vLLM 的 token 计数器);模型上线自动出现、下线自动消失。展台上平台方部署的第三方模型就是被自动发现计量的。</td></tr>
+    <tr><td>精度如何?是测量还是估算?</td><td>整卡独占场景是<strong>测量</strong>(硬件计数器,非模型化估算):同一模型隔离运行 vs 8 模型共驻,J/token 偏差约 1%。每个数字配有 CV(变异系数)稳定门,&lt;3% 才标记可信;不足 30 token 的窗口一律不出数——<strong>非零即可信</strong>。</td></tr>
+    <tr><td>J/token 是模型的固定属性吗?</td><td>不是——它是<strong>模型 × 负载</strong>的联合属性。同一模型并发 1 和并发 64 能差 20 倍(批处理摊薄固定功耗)。所以我们总是带负载上下文给数字:基线值是容量规划上界,满载值是生产下界,差距就是优化空间。</td></tr>
+    <tr><td>测量开销多大?</td><td>接近零:纯 scrape 模式(读 DCGM 与引擎已有的 /metrics),无 eBPF、无插桩、无采样进程;agent 是每节点一个 &lt;100MB 的 Go 进程,CPU 毫核级。</td></tr>
+    <tr><td>支持哪些推理引擎和硬件?</td><td>引擎:vLLM 原生;SGLang/Triton/Ollama 适配在评审中(PR #69/#88),另有 generic-prometheus 适配器接任意暴露 token 计数的引擎。硬件:NVIDIA(DCGM/NVML)为主,AMD provider 已有;MIG 切片计量在 PR #71。</td></tr>
+    <tr><td>多卡张量并行怎么算?共享 GPU 呢?</td><td>TP=k 的 pod 持有 k 张卡 → 恰好这 k 张求和,TP=1 时其余 7 张卡的空转<strong>不会</strong>漏进分子(展台 Demo B 专门验证这点)。多进程挤同一张卡(MPS/分时)硬件计数器无法拆分——退化为按 token 比例分摊并打 <code>attribution_method: proportional</code> 标签,诚实降级而不是假装精确。</td></tr>
+    <tr><td>能区分 prefill 和 decode 的能耗吗?</td><td>不能,这是明确的 non-goal——硬件计数器没有相位概念,任何声称按相位拆分能耗的都是模型估算而非测量。我们展示的是"负载形态影响聚合 J/token"(读重/写重形态差异),口径严格。</td></tr>
+    <tr><td>只算 GPU 电吗?CPU/整机呢?</td><td>当前 J/token 是 GPU-only(推理能耗大头),文档明确标注。主机侧能耗(RAPL/机箱)在 PR #84,落地后会提供 GPU+host 的全口径指标。</td></tr>
+  </table></div>
+
+  <h3>落地与生态</h3>
+  <div class="table-wrap"><table>
+    <tr><th>问</th><th>答</th></tr>
+    <tr><td>部署需要什么?多快能跑起来?</td><td>任何有 NVIDIA device plugin 的 K8s 集群 + dcgm-exporter;Helm 一条命令装 agent(DaemonSet)+ 聚合服务 + Grafana 仪表盘。展台这套 8 模型环境从零到出数不到一天,单集群试用半小时内见到第一条 J/token。</td></tr>
+    <tr><td>怎么变成钱和碳?能接计费吗?</td><td>按站点参数(PUE、电价、电网碳强度)从 J/token 透明换算 —— 每个数字的推导公式直接印在看板上;自带 namespace 维度 30 天 chargeback 聚合与 CSV 导出,可直接喂内部分摊/账单系统。</td></tr>
+    <tr><td>数据能进我现有的监控栈吗?</td><td>天然可以:一切都是标准 Prometheus 指标(<code>aitra_*</code> 系列),Grafana/Alertmanager/Thanos 照常用;另有 OTLP 导出器把窗口数据推给 OpenTelemetry Collector。</td></tr>
+    <tr><td>展台看到的数据是真的吗?</td><td>全部实测实时:身后就是 8×A100 服务器,8 个 Qwen3.5/3.6 模型在跑,你现在扫码打开 meter.aitra.ai 看到的就是它们此刻的功耗——欢迎用控制台亲手改负载,看曲线 10 秒内响应。</td></tr>
+    <tr><td>路线图上有什么?</td><td>近期:SGLang/Triton/Ollama 引擎适配、MIG 切片计量、主机侧能耗、Kepler 集成;中期:OTel GenAI 能耗语义约定、llm-d/KAI 等调度生态的能效信号。欢迎在 issues 认领。</td></tr>
   </table></div>
 </section>
 
