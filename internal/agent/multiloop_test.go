@@ -199,10 +199,10 @@ func TestMultiLoopEndToEnd(t *testing.T) {
 	_, portB := fakeVLLM(t, "model-b", &tokensB)
 
 	cpPath := filepath.Join(t.TempDir(), "kubelet_internal_checkpoint")
-	cp := fmt.Sprintf(`{"Data":{"PodDeviceEntries":[
+	cp := `{"Data":{"PodDeviceEntries":[
 		{"PodUID":"pod-a","ContainerName":"vllm","ResourceName":"nvidia.com/gpu","DeviceIDs":{"0":["GPU-aaa","GPU-bbb"]}},
 		{"PodUID":"pod-b","ContainerName":"vllm","ResourceName":"nvidia.com/gpu","DeviceIDs":["GPU-ccc"]}
-	]}}`)
+	]}}`
 	if err := os.WriteFile(cpPath, []byte(cp), 0o600); err != nil {
 		t.Fatal(err)
 	}
