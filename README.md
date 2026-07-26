@@ -158,6 +158,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidance.
 - [KEDA integration](docs/guides/keda-integration.md)
 - [OpenCost integration](docs/guides/opencost-integration.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
+- [Build from source and test](docs/demo/DEPLOY_AND_TEST.md)
+- [Demo Details](docs/demo/demo-guide-en.html)
 
 ### Concepts
 - [Positioning](docs/concepts/positioning.md) — where Aitra Meter fits next to DCGM Exporter, kube-state-metrics, OpenCost, and Kepler
@@ -193,3 +195,4 @@ Aitra Meter is a [SODA Foundation](https://github.com/sodafoundation) project.
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
