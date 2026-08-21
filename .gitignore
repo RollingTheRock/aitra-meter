@@ -46,6 +46,7 @@ __pycache__/
 # GB10 experiment local environment and raw time-series data
 experiments/gb10/.venv/
 experiments/gb10/results/**
+!experiments/gb10/results/*/
 !experiments/gb10/results/**/report.md
 !experiments/gb10/results/**/l0_baseline.json
 !experiments/gb10/results/**/idle_power_w.json
