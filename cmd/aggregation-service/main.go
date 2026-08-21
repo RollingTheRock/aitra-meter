@@ -36,7 +36,8 @@ func main() {
 	metricsAddr := flag.String("metrics-addr", ":8080", "Prometheus metrics and API listen address")
 	grpcAddr := flag.String("grpc-addr", ":9091", "gRPC listen address for measurement agents")
 	clusterName := flag.String("cluster", "", "Cluster name (required)")
-	kubeconfig := flag.String("kubeconfig", "", "Path to kubeconfig (empty = in-cluster)")
+	kubeconfig := flag.String("kubeconfig", "", "Path to kubeconfig (empty = in-cluster; falls back to standalone static lookups when no cluster is reachable)")
+	staticHwLabel := flag.String("static-hardware-label", envStr("STATIC_HARDWARE_LABEL", "unknown"), "Hardware label reported for all nodes in standalone mode (no Kubernetes)")
 	logLevel := flag.String("log-level", "info", "Log level: debug | info | warn | error")
 	costPerKWh := flag.Float64("electricity-cost-per-kwh", envFloat("ELECTRICITY_COST_PER_KWH", 0), "Electricity cost USD/kWh for cost derivation (0 = off)")
 	gridGCO2 := flag.Float64("grid-gco2-per-kwh", envFloat("GRID_GCO2_PER_KWH", 0), "Grid carbon intensity gCO2/kWh for carbon derivation (0 = off)")
@@ -82,17 +83,30 @@ func main() {
 	defer backend.Close() //nolint:errcheck
 
 	// --- Kubernetes client -------------------------------------------------
+	// Optional: without a cluster (standalone / docker-compose deployments)
+	// the service falls back to static lookups — pod metadata resolves to
+	// "unknown" and every node reports --static-hardware-label.
 	k8sClient, err := buildK8sClient(*kubeconfig)
+	var podMeta aggregation.PodLookup
+	var nodeHw aggregation.NodeHardware
 	if err != nil {
-		log.Fatal("kubernetes client init failed", zap.Error(err))
+		log.Warn("kubernetes unavailable — running standalone with static lookups",
+			zap.Error(err),
+			zap.String("static_hardware_label", *staticHwLabel),
+		)
+		podMeta = k8slookup.NewStaticPodMetaLookup(nil)
+		nodeHw = k8slookup.NewStaticNodeHardware(*staticHwLabel)
+	} else {
+		podMeta = k8slookup.NewPodMetaLookup(k8sClient)
+		nodeHw = k8slookup.NewNodeHardwareLookup(k8sClient)
 	}
 
 	// --- aggregation loop --------------------------------------------------
 	loop := aggregation.NewLoop(
 		*clusterName,
-		aggregation.NewResolver(k8slookup.NewPodMetaLookup(k8sClient), aggregation.PolicyConfig{}),
+		aggregation.NewResolver(podMeta, aggregation.PolicyConfig{}),
 		aggregation.NewCalibrationTableFromMap(nil),
-		k8slookup.NewNodeHardwareLookup(k8sClient),
+		nodeHw,
 		backend,
 		aggregation.SiteParams{
 			ElectricityCostPerKWh: *costPerKWh,
