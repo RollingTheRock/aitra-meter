@@ -1,0 +1,21 @@
+{
+  "features": [
+    "prompt_tok_s",
+    "predicted_tok_s",
+    "proc_sm_pct",
+    "sm_clock_mhz",
+    "temp_c"
+  ],
+  "coefficients": {
+    "b0": -275.93612702161374,
+    "prompt_tok_s": 0.012129924528736897,
+    "predicted_tok_s": 0.003064714570403209,
+    "proc_sm_pct": 0.1596488841523051,
+    "sm_clock_mhz": 0.1028549383668907,
+    "temp_c": 0.6789420922310243
+  },
+  "holdout_mape_pct": 0.8407556559024572,
+  "n_windows": 34,
+  "n_holdout": 7,
+  "window_seconds": 30.0
+}
