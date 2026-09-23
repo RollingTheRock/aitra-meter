@@ -1,0 +1,156 @@
+# GB10 attribution experiment queue — multi-instance energy attribution
+#
+# Purpose: pick the energy-attribution rule for multiple inference instances
+# sharing the single GB10 GPU, and put error bounds on it.
+#   P   decay pre-run — measure post-load power/temp/clock decay, set the
+#       cooldown policy from data (physical reset vs statistical correction)
+#   L0  single-instance baseline — build the proxy ground-truth model
+#       power = f(token rate, per-process sm%, sm clock, temp)
+#   L1  two-instance time-slicing — compare attribution rules
+#       (token-proportional / smUtil-proportional / idle-split + dynamic)
+#       against the L0 baseline expectation per instance
+#   L2  residency tax + interference overhead + one MPS cross-check
+#
+# Hard constraints (from probe 2026-08-21):
+#   - single GPU, single NVML energy counter → all runs serialized
+#   - per-process SM/mem utilization IS available (nvmlDeviceGetProcessUtilization)
+#   - clock locking NOT supported → sm_clock + temp recorded per window as
+#     covariates; drift controlled by interleaved order + anchor-cell repeats
+#   - desktop session (Xorg/gnome/firefox, ~5 pids) shares the energy counter
+#     → stop the graphical session before formal runs
+
+meta:
+  window_seconds: 30
+  discard_first_window_per_round: true
+  trim_tail_windows_per_round: 1
+  warmup_once_minutes: 2
+  cooldown:
+    # Redefined after review: drain-first, light thermal reset. Waiting for
+    # idle ±2W pays for the slow tail of exponential decay (~90s/round, ~1h
+    # total) — replaced by request drain + a loose power gate, with temp and
+    # sm_clock carried as regression covariates instead of a physical reset.
+    policy: drain_first
+    drain: close loadgen, wait for in-flight requests to finish
+    power_gate_w_above_idle: 5     # proceed once power <= idle + 5W
+    max_seconds: 120
+    fallback: idle ±2W / 300s      # if P or anchor cells say drift is real
+  adaptive_round:
+    stop_when: min_completed_requests >= 30 AND elapsed >= 120s
+    max_seconds: 300
+  signals_per_window:           # all aligned to the 30s window, raw series kept
+    - energy_mj                 # nvmlDeviceGetTotalEnergyConsumption delta
+    - power_w
+    - sm_util_dev               # device-level
+    - per_pid_sm_util           # nvmlDeviceGetProcessUtilization, per instance pid
+    - per_pid_mem_util
+    - sm_clock_mhz              # DVFS covariate (no locking on GB10)
+    - temp_c                    # thermal covariate
+    - prompt_tokens_per_instance
+    - predicted_tokens_per_instance
+  loadgen:
+    unique_random_prefix: true
+    per_request_log:
+      fields: [request_id, instance_id, start_ts, end_ts, ttft_ms, tpot_ms,
+               prompt_tokens, output_tokens, cache_hit]
+    min_completed_requests_per_round: 30
+  shapes:
+    A: {name: long_input_short_output, prompt_tokens: 2048, output_tokens: 16}
+    M: {name: balanced,                prompt_tokens: 512,  output_tokens: 256}
+    B: {name: short_input_long_output, prompt_tokens: 32,   output_tokens: 1024}
+  instances:
+    - {id: inst-a, port: 8080, model: Samantha-Mistral-7B-Q4_K_M}
+    - {id: inst-b, port: 8081, model: Samantha-Mistral-7B-Q4_K_M}  # L1/L2 only
+
+# --- P: decay pre-run (~10 min, sets cooldown policy from data) -------------
+experiment_P_decay:
+  protocol:
+    - measure idle baseline 5 min (power, temp, sm_clock at 1 Hz)
+    - one heavy round: c16 shape B, 180s
+    - then sample power/temp/sm_clock at 1 Hz for 300s, no load
+  outputs:
+    - seconds to reach idle+5W and idle+2W after drain
+    - do temp & sm_clock explain residual power variance during decay?
+      yes → statistical correction valid, keep drain_first policy
+      no  → fall back to conservative cooldown everywhere
+
+# --- L0: single-instance baseline (inst-a only), ~1h -------------------------
+# 12 cells = concurrency {2,4,8,16} x shapes {A,M,B}, single pass,
+# + 3 anchor cells repeated in reverse at the end to quantify drift.
+# (c1 dropped: last week's curve has it, and idle power dominates its J/token.)
+experiment_L0_baseline:
+  idle_baseline_minutes: 5     # part of pre-run P; reuse if same session
+  cells:
+    - {concurrency: 2,  shapes: [A, M, B]}
+    - {concurrency: 4,  shapes: [A, M, B]}
+    - {concurrency: 8,  shapes: [A, M, B]}
+    - {concurrency: 16, shapes: [A, M, B]}
+  anchor_repeats:              # reversed re-runs at the end
+    - {concurrency: 4,  shape: M}
+    - {concurrency: 8,  shape: M}
+    - {concurrency: 16, shape: M}
+  analysis: >
+    Fit power = f(prompt/predicted token rate, per-pid sm%, sm_clock, temp)
+    with 20% holdout cross-validation; report residuals. Anchor repeats:
+    J/token and power shift between first pass and reversed re-run estimates
+    drift magnitude; >10% → fallback cooldown + full second pass. Sanity check
+    against last week's curve {c1: 0.905, c4: 0.334, c8: 0.235, c16: 0.108}, M.
+  pass_criterion: >
+    Holdout MAPE <= 10%, residuals not trending with concurrency, anchor drift
+    <= 10%. Else fix signals/cooldown before L1.
+
+# --- L1: two-instance time-slicing attribution, ~40 min ---------------------
+# load_ratio expressed as per-instance concurrency (ca, cb)
+experiment_L1_sharing:
+  sharing: time-slicing        # compute mode Default, no MPS daemon
+  cells:
+    - {ca: 8, cb: 8, shape: M}  # 1:1 symmetric
+    - {ca: 4, cb: 4, shape: M}  # 1:1 lower intensity
+    - {ca: 6, cb: 2, shape: M}  # 3:1 asymmetric — the key attribution test
+    - {ca: 8, cb: 0, shape: M}  # busy:idle — also feeds L2 residency tax
+    - {ca: 4, cb: 4, shape: A}  # shape sensitivity, 1:1 only
+    - {ca: 4, cb: 4, shape: B}
+  attribution_rules:
+    token_prop:  E_i = dE * tok_i / tok_total
+    sm_prop:     E_i = dE * sm_i / sm_total
+    split:       E_i = dE_static/2 + (dE - dE_static) * sm_i / sm_total
+  analysis: >
+    Per window, attribute dE under each rule; per instance, predict expected
+    energy from L0 baseline model given that instance's observed load. Error
+    proxy = attributed - expected. Compare rules across load ratios.
+  pass_criterion: >
+    A rule whose error stays within +-10% across 1:1 and 3:1 wins. Conditions
+    where all rules exceed +-15% are logged as the no-attribution zone
+    (report whole-GPU only there).
+
+# --- L2: residency tax, interference overhead, MPS cross-check, ~45 min -----
+experiment_L2_overheads:
+  residency_tax:
+    - {ca: 0, cb: 0, seconds: 300, note: both resident, zero traffic}
+    # busy:idle cell reused from L1 (8,0); busy-only reference = L0 c8 shape M
+  interference_overhead:
+    analysis: >
+      No extra runs. From L1 1:1 cells: measured shared dE vs sum of L0
+      baseline predictions for the two instances' loads. Difference = cost of
+      co-location itself (cache/KV/scheduling interference).
+  mps_crosscheck:
+    daemon: nvidia-cuda-mps-control
+    env: {CUDA_MPS_ACTIVE_THREAD_PERCENTAGE: 50}
+    cells:
+      - {ca: 8, cb: 8, shape: M}
+      - {ca: 6, cb: 2, shape: M}
+    note: does the winning L1 rule still win under MPS, or must rules be
+          calibrated per sharing mechanism?
+
+# --- Time budget (revised) --------------------------------------------------
+#   pre-run P + hookup/debug  ~1.2h (one-off)
+#   L0  ~1h   (15 rounds x ~160s load + 15 x ~35s cooldown + idle/warmup)
+#   L1  ~40min (10 rounds adaptive + drain cooldowns + inst-b startup)
+#   L2  ~45min
+#   total ~3.5h, half a day serialized (was ~6h under ±2W cooldown)
+
+# --- Outputs ----------------------------------------------------------------
+outputs:
+  raw_data: results/<YYYYMMDD>/   # window series + per-request logs + decay trace
+  baseline_model: results/<YYYYMMDD>/l0_baseline.json  # coefficients + holdout
+  verdict: docs/ — attribution-rule choice + error band per condition
+           → input to the attribution ADR and the A100 verification runs

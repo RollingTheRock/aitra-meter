@@ -11,6 +11,7 @@ COPY . .
 
 ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build \
+      -buildvcs=false \
       -trimpath \
       -ldflags "-s -w -X main.version=${VERSION}" \
       -o /out/aggregation-service \

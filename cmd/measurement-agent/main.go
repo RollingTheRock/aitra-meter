@@ -21,6 +21,7 @@ import (
 	_ "github.com/aitra-ai/aitra-meter/internal/provider/energy/amd"
 	_ "github.com/aitra-ai/aitra-meter/internal/provider/energy/dcgm"
 	_ "github.com/aitra-ai/aitra-meter/internal/provider/energy/kepler"
+	_ "github.com/aitra-ai/aitra-meter/internal/provider/energy/nvml"
 	_ "github.com/aitra-ai/aitra-meter/internal/provider/energy/zeus"
 	_ "github.com/aitra-ai/aitra-meter/internal/provider/inference/genericprometheus"
 	_ "github.com/aitra-ai/aitra-meter/internal/provider/inference/vllm"
@@ -35,6 +36,8 @@ func main() {
 	logLevel := flag.String("log-level", "info", "Log level: debug | info | warn | error")
 	inferenceEndpoint := flag.String("inference-endpoint", "", "Inference provider metrics URL (e.g. http://localhost:8000/metrics)")
 	energyEndpoint := flag.String("energy-endpoint", "", "Energy provider endpoint URL for scrape-based providers (dcgm exporter /metrics URL, or the Prometheus base URL for kepler)")
+	outputTokensMetric := flag.String("output-tokens-metric", "", "Output tokens counter name (generic-prometheus provider, e.g. llamacpp:tokens_predicted_total)")
+	requestsRunningMetric := flag.String("requests-running-metric", "", "In-flight requests gauge name (generic-prometheus provider, e.g. llamacpp:requests_processing)")
 	perModel := flag.Bool("per-model", false, "Discover GPU pods on this node and report one window per model (requires a per-device energy provider such as dcgm)")
 	checkpointPath := flag.String("checkpoint-path", "", "kubelet device-plugin checkpoint path (per-model mode; defaults to "+agent.DefaultCheckpointPath+")")
 	kubeconfig := flag.String("kubeconfig", "", "Path to kubeconfig (per-model mode; defaults to in-cluster config)")
@@ -109,6 +112,12 @@ func main() {
 	inferenceConfig := map[string]string{}
 	if *inferenceEndpoint != "" {
 		inferenceConfig["endpoint"] = *inferenceEndpoint
+	}
+	if *outputTokensMetric != "" {
+		inferenceConfig["output_tokens_metric"] = *outputTokensMetric
+	}
+	if *requestsRunningMetric != "" {
+		inferenceConfig["requests_running_metric"] = *requestsRunningMetric
 	}
 	inferenceProvider, err := provider.NewInference(*inferenceType, inferenceConfig)
 	if err != nil {

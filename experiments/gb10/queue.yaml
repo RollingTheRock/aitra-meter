@@ -1,0 +1,73 @@
+# GB10 experiment queue — week of 2026-08-14
+#
+# Purpose: close the two open questions from last week's runs (docs: weekly
+# summary 2026-08-07):
+#   E1  H1 — is the prefill/decode phase energy difference stably observable
+#       once llama.cpp prefix caching is defeated (unique random prefix per
+#       request)?
+#   E2  C16 anomaly — is the apparent power drop at concurrency 16 a
+#       fixed-window/token-counting aliasing artifact or real behavior?
+#
+# Hard constraint: single GB10 GPU, single NVML energy counter. All runs MUST
+# be serialized — concurrent loads share one energy window and cannot be
+# attributed (that is the multi-tenant attribution problem itself).
+#
+# Environment (fill in on the GB10 host):
+#   inference: llama.cpp server, model Samantha-Mistral-7B Q4_K_M
+#   endpoint:  <http://gb10-host:PORT>
+#   energy:    NVML GPU-domain cumulative energy, 30s aggregation windows
+#   tokens:    llamacpp:tokens_predicted_total via generic-prometheus provider
+
+meta:
+  window_seconds: 30
+  discard_first_window_per_round: true   # transition ramp, replaces long warmup
+  trim_tail_windows_per_round: 1         # long requests straddling cooldown
+  warmup_once_minutes: 2                 # PTX JIT + steady-state, before round 1 only
+  cooldown:
+    adaptive: true                       # start next round once NVML power
+    idle_baseline_tolerance_w: 2         # returns to idle baseline ± 2W
+    max_seconds: 300                     # safety cap; log actual cooldown used
+  loadgen:
+    unique_random_prefix: true           # defeats prefix cache — mandatory
+    per_request_log:                     # required for E2 window-alignment
+      fields: [request_id, start_ts, end_ts, ttft_ms, tpot_ms,
+               prompt_tokens, output_tokens, cache_hit]
+    min_completed_requests_per_round: 30 # else extend that round to 4-5 min
+
+# --- E1: workload-shape contrast (fixed), concurrency 4 ---------------------
+experiment_1_shape:
+  concurrency: 4
+  rounds: 2                # adaptive: a group whose two rounds disagree on
+                           # ordering gets a 3rd round for that group only
+  round_seconds: 180
+  order: [A, M, B, B, M, A]  # reversed second pass cancels thermal drift
+  # 与上周 run_phase2.sh 完全同形状，保证 prefix cache 修复前后可对比：
+  shapes:
+    A: {name: long_input_short_output, prompt_tokens: 2048, output_tokens: 16}
+    M: {name: balanced,                prompt_tokens: 512,  output_tokens: 256}
+    B: {name: short_input_long_output, prompt_tokens: 32,   output_tokens: 1024}
+  record: [j_per_token, gpu_power_w, ttft_ms, tpot_ms]
+  pass_criterion: >
+    Between-group J/token and power differences repeat across both passes AND
+    TTFT/TPOT are consistent with the phase mix (prefill-heavy group shows
+    high TTFT and high instantaneous power). Else H1 = not confirmed.
+
+# --- E2: concurrency-16 retest + gap fill -----------------------------------
+experiment_2_concurrency:
+  shape: {prompt_tokens: 512, output_tokens: 256}
+  runs:
+    - {concurrency: 16, round_seconds: 180, repeats: 2}  # stop if both agree
+    - {concurrency: 2,  round_seconds: 180, repeats: 1}  # fills curve gap
+  analysis: >
+    Align per-request completion timestamps with the 30s energy windows.
+    If the two-beat oscillation correlates with batched request completions,
+    classify C16 as window-aliasing (known measurement bias). If it persists
+    after alignment, log as open question — no extra runs this week.
+  existing_curve: {c1: 0.905, c4: 0.334, c8: 0.235, c16: 0.108}  # J/token, last week
+
+# --- Outputs ----------------------------------------------------------------
+outputs:
+  raw_data: results/<YYYYMMDD>/   # energy windows + per-request logs + cooldowns
+  report: docs/ — single experiment report:
+    baseline + E1 (H1 verdict) + E2 (C16 verdict) + prefix-cache methodology
+    note + evidence boundaries + open questions
