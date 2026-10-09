@@ -1,31 +1,58 @@
-## Summary
+## 1. 变更目标与原子特性 (Objective & Scope)
+<!-- 请简明扼要说明本次 PR 的单一业务或技术目标，禁止多主题混合的大礼包 PR -->
+- **任务主题**: 
+- **关联 Issue / Task**: 
+- **变更性质**: [ ] 硬件遥测/能耗归因  [ ] task-gateway/OpenAI 网关  [ ] Agent 调度流式中继  [ ] 前端控制面板 SPA  [ ] 部署与网络 (BidCore/Tailscale)
 
-<!-- What does this PR do and why? Link to the issue it closes: Closes #123 -->
+---
 
-## Type of change
+## 2. 门禁与契约自查清单 (Invariant Compliance Checklist)
+<!-- 在提交前，请在本地运行测试确认全部通过，并勾选以下必填项 -->
 
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Provider addition (energy or inference)
-- [ ] Storage backend addition
-- [ ] Documentation
-- [ ] Chore / dependency update
+- [ ] **PR 规模合规**：有效代码变动在合理规模内（排查无用文件、编译产物与缓存），避免大礼包提交。
+- [ ] **核心资产保护 (Anti-Vandalism)**：未清空或破坏性删除主线既有核心模块（`internal/provider/*`, `internal/agent/*` 等）。
+- [ ] **零凭据与敏感信息硬编码**：已清除任何硬编码外部测试 IP、明文 Token 或私人机器密钥，所有配置由环境变量严格注入。
+- [ ] **严格类型与编译保障**：Go 代码 `go build ./...` 零报错；前端 `pnpm build` 或 `tsc` 零报错。
+- [ ] **真实测试与零伪造 (Anti-Mocking)**：测试断言覆盖真实物理边界，严禁使用 Fake Mock 假冒测试通过，单测全部通过。
 
-## Checklist
+---
 
-- [ ] `go build ./...` is clean
-- [ ] `go test -race ./...` passes
-- [ ] `golangci-lint run` is clean
-- [ ] Helm chart changes: `helm lint helm/aitra-meter` passes
-- [ ] New provider or storage backend: full interface implemented (no `not implemented` stubs)
-- [ ] Measurement methodology change: ADR included or referenced
-- [ ] New dependency: rationale in PR description
-- [ ] Commits are signed off (`git commit -s`)
+## 3. 验证证据 (Verification Evidence - 严格对齐 AGENTS.md)
+<!-- 依据 AGENTS.md 规范，无机器铁证的 PR 一律视为 Draft 驳回。请按变更类型附带对应证据： -->
 
-## Does this change the measurement methodology?
+### 3.1 前端 / UI 视觉呈现 (涉及前端必附：真实浏览器渲染截图 PNG)
+<!-- 若涉及页面路由、控制台输出、图表看板或交互触点改动，必须附上无头/真实浏览器渲染截图 -->
+- **渲染截图或对比图**:
+  <!-- 例: ![截图说明](docs/evidence/xxx/panel.png) 或粘贴图片链接 -->
 
-<!-- If yes, describe the impact on J/token computation, attribution, or calibration. An ADR is required for methodology changes. -->
+### 3.2 后端 / 遥测 / 引擎性能变动 (算法/网关必附：耗时与能耗前后对比)
+<!-- 若涉及能耗采样、底噪扣除、网关转发或流式性能，请提供测试日志与数值对比表 -->
+| 场景 / 指标 | 变更前 (Before) | 变更后 (After) | 收益 / 提升说明 |
+| :--- | :--- | :--- | :--- |
+| **Agent CPU 能耗 (空载)** | 例: 350 J (包含底噪) | 例: 2.1 J (底噪剔除) | 彻底消除待机虚高 |
+| **端到端网关延迟 (P95)** | 例: 120ms | 例: 15ms | 本地流式零拷贝反向代理 |
 
-## Testing
+### 3.3 Bug 修复红转绿日志 (Bug Fix 必附: Red -> Green Reproduction)
+```bash
+# 修复前：红灯报错 (Red Reproduction)
+<粘贴未修复前的失败堆栈>
 
-<!-- How was this tested? What hardware, inference server, and provider were used? -->
+# 修复后：绿灯通过 (Green Verification)
+<粘贴修复后的测试通过输出>
+```
+
+### 3.4 门禁合规与核心单测输出 (全类型必填)
+```bash
+# 1. 核心单测验证 (go test 或 pnpm test)
+<粘贴测试终端输出>
+
+# 2. 静态检查 (golangci-lint / tsc)
+<粘贴输出>
+```
+
+---
+
+## 4. 下游影响与回滚方案 (Blast Radius & Rollback)
+- **影响的调用方/依赖层**: 
+- **是否存在破坏性接口变动**: [ ] 是  [ ] 否
+- **回滚说明**: 
