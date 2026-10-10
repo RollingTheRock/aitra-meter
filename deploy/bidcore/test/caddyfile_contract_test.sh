@@ -14,7 +14,6 @@ grep -q "root \* /var/www/aitra-dashboard" "$CADDYFILE" || (echo "FAIL: missing 
 grep -q "try_files {path} /index.html" "$CADDYFILE" || (echo "FAIL: missing try_files SPA fallback" && exit 1)
 grep -q 'header @html Cache-Control "no-cache, no-store, must-revalidate"' "$CADDYFILE" || (echo "FAIL: missing html cache-control" && exit 1)
 grep -q 'header @assets Cache-Control "public, max-age=31536000, immutable"' "$CADDYFILE" || (echo "FAIL: missing assets cache-control" && exit 1)
-grep -q 'reverse_proxy /api/\* http://{\$XPARK_TAILSCALE_IP:100.124.203.70}:8000' "$CADDYFILE" || (echo "FAIL: missing api proxy" && exit 1)
-grep -q 'reverse_proxy /ws http://{\$XPARK_TAILSCALE_IP:100.124.203.70}:8000' "$CADDYFILE" || (echo "FAIL: missing ws proxy" && exit 1)
+grep -q 'reverse_proxy http://{\$XPARK_TAILSCALE_IP:100.124.203.70}:8000' "$CADDYFILE" || (echo "FAIL: missing reverse_proxy" && exit 1)
 
 echo "PASS: Caddyfile contract matches specification."

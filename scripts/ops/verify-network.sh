@@ -63,21 +63,37 @@ fi
 
 # 5. 检查公网 WebSocket Upgrade 握手穿透至 xpark Runner
 echo -n "[5/5] Checking WebSocket Upgrade handshake to http://$BIDCORE_PUBLIC_IP/ws... "
-WS_RESP=$(curl -sI -m 5 \
-    -H "Connection: Upgrade" \
-    -H "Upgrade: websocket" \
-    -H "Sec-WebSocket-Key: SGVsbG8sIHdvcmxkIQ==" \
-    -H "Sec-WebSocket-Version: 13" \
-    "http://$BIDCORE_PUBLIC_IP/ws" || true)
+WS_STATUS=$(python3 -c "
+import socket
+s = socket.socket()
+s.settimeout(5)
+s.connect(('$BIDCORE_PUBLIC_IP', 80))
+req = (
+    b'GET /ws HTTP/1.1\r\n'
+    b'Host: $BIDCORE_PUBLIC_IP\r\n'
+    b'Connection: Upgrade\r\n'
+    b'Upgrade: websocket\r\n'
+    b'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+    b'Sec-WebSocket-Version: 13\r\n\r\n'
+)
+s.sendall(req)
+resp = s.recv(1024).decode('utf-8', errors='ignore')
+s.close()
+if '101' in resp or 'Switching Protocols' in resp:
+    print('101_OK')
+elif '502' in resp:
+    print('502_BAD_GATEWAY')
+else:
+    print(resp.split('\r\n')[0] if resp else 'EMPTY')
+" 2>/dev/null || echo "CONNECT_FAIL")
 
-if echo "$WS_RESP" | grep -qi "101 Switching Protocols"; then
+if [[ "$WS_STATUS" == "101_OK" ]]; then
     echo "OK (101 Switching Protocols Handshake Verified)"
-elif echo "$WS_RESP" | grep -qi "502 Bad Gateway"; then
+elif [[ "$WS_STATUS" == "502_BAD_GATEWAY" ]]; then
     echo "FAIL (502 Bad Gateway: Caddy is live, but xpark Runner on $XPARK_TAILSCALE_IP:$RUNNER_PORT is offline)"
     exit 1
 else
-    echo "FAIL (Unexpected response from /ws proxy)"
-    echo "$WS_RESP"
+    echo "FAIL (Unexpected response from /ws proxy: $WS_STATUS)"
     exit 1
 fi
 
