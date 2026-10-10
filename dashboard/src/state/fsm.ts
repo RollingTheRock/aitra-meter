@@ -153,13 +153,15 @@ export function createAgentFSM(options?: FSMOptions): AgentFSM {
       }
 
       case "WS_DISCONNECTED": {
-        state = "DISCONNECTED";
-        notify();
+        if (state === "IDLE") {
+          state = "DISCONNECTED";
+          notify();
+        }
         break;
       }
 
       case "RUN_TASK": {
-        if (state === "IDLE") {
+        if (state === "IDLE" || state === "DISCONNECTED") {
           state = "SUBMITTING";
           currentTaskId = action.taskId;
           prompt = action.prompt;
@@ -179,17 +181,15 @@ export function createAgentFSM(options?: FSMOptions): AgentFSM {
       }
 
       case "RESET": {
-        if (state === "SETTLED" || state === "ERROR" || state === "IDLE") {
-          state = "IDLE";
-          currentTaskId = null;
-          prompt = null;
-          events = [];
-          telemetryRingBuffer = [];
-          latestTelemetry = null;
-          settledBill = null;
-          errorMessage = null;
-          notify();
-        }
+        state = "IDLE";
+        currentTaskId = null;
+        prompt = null;
+        events = [];
+        telemetryRingBuffer = [];
+        latestTelemetry = null;
+        settledBill = null;
+        errorMessage = null;
+        notify();
         break;
       }
 

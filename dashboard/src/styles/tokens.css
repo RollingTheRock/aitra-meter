@@ -1,59 +1,57 @@
-/* Aitra Design System Tokens - Core brand identity and Magpie hairline aesthetic */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+/* Aitra Design System Tokens - Aligned 100% with aitra.ai light brand aesthetic */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Aitra 官方品牌调色板 */
-  --aitra-indigo-deep: #312e81;      /* 品牌深靛蓝 (Headings, Primary Buttons) */
-  --aitra-coral:       #ff6b4d;      /* 品牌活力珊瑚橙 (Accents, Status Badges, Highlights) */
-  --aitra-electric-blue: #2563eb;    /* 品牌电光蓝 (Links, Secondary Accents) */
-  --aitra-emerald:     #10b981;      /* 成功/稳定/正常指标状态 */
-  --aitra-amber:       #f59e0b;      /* 预警/CV波动指标状态 */
+  /* Aitra Official Brand Palette */
+  --aitra-indigo-deep: #1e1b4b;      /* Deep indigo (Headlines, Top Bar, Hero) */
+  --aitra-indigo-btn:  #312e81;      /* Primary button background */
+  --aitra-coral:       #ff6b4d;      /* Vibrant coral orange (Secondary Headline, Accents, Highlights) */
+  --aitra-electric-blue: #2563eb;    /* Electric blue (Links, Badges, GPU Series) */
+  --aitra-emerald:     #10b981;      /* Emerald green (CPU Net Series, Pass status) */
+  --aitra-amber:       #f59e0b;      /* Amber warning (CV Gate Warning) */
 
-  /* 字体排印 */
-  --font-ui:   'Space Grotesk', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Space Mono', 'Courier New', monospace;
+  /* Canvas Foundation: Aligned 100% with aitra.ai open-source light theme */
+  --bg:          #f8fafc;            /* Clean soft slate canvas */
+  --bg-page:     #ffffff;            /* Pure white primary workspace */
+  --bg-subtle:   #f1f5f9;            /* Subtle secondary area (terminal/input/boxes) */
+  --bg-card:     #ffffff;            /* Pure white card surface */
+  --card-hover:  #fafafa;            /* Card subtle hover state */
+  
+  /* Typography & Hierarchy */
+  --ink:         #0f172a;            /* Primary heading and main numbers (Slate 900) */
+  --ink2:        #475569;            /* Secondary body text (Slate 600) */
+  --ink3:        #94a3b8;            /* Muted helper text / labels (Slate 400) */
+  
+  /* Hairline Borders & Material */
+  --line:        #e2e8f0;            /* Delicate hairline border (Slate 200) */
+  --line-strong: #cbd5e1;            /* Strong boundary border (Slate 300) */
+  --line-focus:  #2563eb;            /* Focused highlight border */
+  
+  /* Interactive Controls */
+  --btn-primary-bg:  #1e1b4b;        /* Primary action deep indigo button */
+  --btn-primary-ink: #ffffff;
+  --btn-secondary-bg: #ffffff;       /* Secondary outlined button */
+  --btn-secondary-ink: #0f172a;
+  --btn-secondary-line: #cbd5e1;
+  
+  /* Border Radii */
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   14px;
+  
+  /* Spacing & Shadows */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(0, 0, 0, 0.04);
+  --shadow-lg:   0 10px 30px -10px rgba(15, 23, 42, 0.08);
+
+  /* Fonts */
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-ui:      'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:    'Space Mono', 'Courier New', monospace;
 }
 
-/* 暗色模式 (Dark Theme - 默认) */
-:root[data-theme="dark"], :root {
-  --bg:        #0b0b0c;              /* 极夜黑画布底色 */
-  --bg2:       #121214;              /* 次级背景 (输入框/控制台区域底色) */
-  --bg3:       #1a1a1d;              /* 三级背景 (鼠标悬浮/高亮) */
-  --card:      #161618;              /* 卡片背景色 */
-  --card-hover:#1c1c1f;              /* 卡片悬停底色 */
-  --ink:       #f2f2f3;              /* 主文字颜色 */
-  --ink2:      #b3b3ba;              /* 次级说明文字 */
-  --ink3:      #7a7a82;              /* 弱化辅助文字 */
-  --line:      #26262a;              /* Magpie 标志性 1px 发丝边框 */
-  --line-strong:#3a3a40;             /* 强化边界线 */
-  --btn:       #f2f2f3;              /* 高对比度按钮底色 */
-  --btn-ink:   #0b0b0c;              /* 按钮文字色 */
-  --radius-sm: 4px;                  /* 徽章微圆角 */
-  --radius:    8px;                  /* 标配微圆角 */
-  --radius-lg: 12px;                 /* 容器级圆角 */
-  --shadow:    0 1px 2px rgba(0, 0, 0, 0.3), 0 20px 60px -20px rgba(0, 0, 0, 0.8);
-}
-
-/* 亮色模式 (Light Theme) */
-:root[data-theme="light"] {
-  --bg:        #fafafa;
-  --bg2:       #f1f1f2;
-  --bg3:       #e5e5e7;
-  --card:      #ffffff;
-  --card-hover:#f8f8f9;
-  --ink:       #111112;
-  --ink2:      #4a4a50;
-  --ink3:      #85858c;
-  --line:      #e4e4e7;              /* 浅色 1px 发丝边框 */
-  --line-strong:#d4d4d8;
-  --btn:       #111112;
-  --btn-ink:   #fafafa;
-  --radius-sm: 4px;
-  --radius:    8px;
-  --radius-lg: 12px;
-  --shadow:    0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px -12px rgba(0, 0, 0, 0.18);
-}
-
+/* Global Reset & Typography Baseline */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -70,6 +68,11 @@ body {
   min-height: 100vh;
 }
 
-code, pre, kbd {
+h1, h2, h3, h4, .brand-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+code, pre, kbd, .font-mono {
   font-family: var(--font-mono);
 }

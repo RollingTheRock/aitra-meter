@@ -33,10 +33,6 @@ export function createWSClient(options: WSClientOptions): WSClient {
 
   function resolveUrl(): string {
     if (options.url) return options.url;
-    if (typeof window !== "undefined") {
-      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      return `${proto}//${window.location.host}/ws`;
-    }
     return "ws://127.0.0.1:8000/ws";
   }
 
