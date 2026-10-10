@@ -17,6 +17,29 @@ export interface WSClient {
 }
 
 /**
+ * Resolves the appropriate WebSocket endpoint based on environment or window location.
+ */
+export function resolveWsUrl(options?: { url?: string }): string {
+  if (options?.url) return options.url;
+
+  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+
+  if (typeof window !== "undefined" && window.location) {
+    const { protocol, host, port } = window.location;
+    // Vite dev server typically runs on 5173 / 3000
+    if (port === "5173" || port === "3000") {
+      return "ws://127.0.0.1:8000/ws";
+    }
+    const wsProto = protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProto}//${host}/ws`;
+  }
+
+  return "ws://127.0.0.1:8000/ws";
+}
+
+/**
  * Creates a resilient WebSocket client relaying runner events to the FSM.
  */
 export function createWSClient(options: WSClientOptions): WSClient {
@@ -32,8 +55,7 @@ export function createWSClient(options: WSClientOptions): WSClient {
   let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   function resolveUrl(): string {
-    if (options.url) return options.url;
-    return "ws://127.0.0.1:8000/ws";
+    return resolveWsUrl(options);
   }
 
   function connect(): void {

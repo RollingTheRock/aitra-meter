@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { PiStreamEvent } from "./contracts.js";
 
 export interface CpuAttributionSource {
@@ -5,9 +7,17 @@ export interface CpuAttributionSource {
   sampleTurnEnd(taskId: string): Promise<number>;
 }
 
+export interface LiveTelemetrySample {
+  gpuWatts: number;
+  cpuWatts: number;
+  idleBaselineWatts: number;
+  hostWatts?: number;
+}
+
 export interface MeterBridgeOptions {
   gatewayBaseUrl?: string;
   metricsUrl?: string;
+  hwmonPath?: string;
   cpuAttributionSource?: CpuAttributionSource;
   reconciliationTimeoutMs?: number;
   reconciliationPollIntervalMs?: number;
@@ -29,6 +39,7 @@ export interface TaskGatewayBillResponse {
 export class MeterBridge {
   private readonly gatewayBaseUrl: string;
   private readonly metricsUrl: string;
+  private readonly hwmonPath: string;
   private readonly cpuSource?: CpuAttributionSource;
   private readonly reconciliationTimeoutMs: number;
   private readonly reconciliationPollIntervalMs: number;
@@ -40,6 +51,10 @@ export class MeterBridge {
       options?.metricsUrl ??
       process.env.AITRA_METRICS_URL ??
       "http://127.0.0.1:18083/metrics";
+    this.hwmonPath =
+      options?.hwmonPath ??
+      process.env.AITRA_HWMON_PATH ??
+      "/sys/class/hwmon";
     this.cpuSource = options?.cpuAttributionSource;
     this.reconciliationTimeoutMs = options?.reconciliationTimeoutMs ?? 35_000;
     this.reconciliationPollIntervalMs = options?.reconciliationPollIntervalMs ?? 1_000;
@@ -76,6 +91,105 @@ export class MeterBridge {
       }
     } catch {
       // Ignore network errors during polling
+    }
+    return null;
+  }
+
+  /**
+   * Reads hardware power sensors directly from Grace Hopper SPBM hwmon sysfs if available.
+   */
+  readSpbmHwmon(): LiveTelemetrySample | null {
+    try {
+      const base = this.hwmonPath;
+      if (!fs.existsSync(base)) return null;
+      const entries = fs.readdirSync(base);
+      for (const dir of entries) {
+        const namePath = path.join(base, dir, "name");
+        if (!fs.existsSync(namePath)) continue;
+        const name = fs.readFileSync(namePath, "utf8").trim().toLowerCase();
+        if (name.includes("spbm") || name.includes("spark")) {
+          const dirPath = path.join(base, dir);
+          const readWatt = (targetLabel: string): number => {
+            for (let i = 1; i <= 24; i++) {
+              const lblPath = path.join(dirPath, `power${i}_label`);
+              if (fs.existsSync(lblPath) && fs.readFileSync(lblPath, "utf8").trim() === targetLabel) {
+                const inPath = path.join(dirPath, `power${i}_input`);
+                if (fs.existsSync(inPath)) {
+                  const microWatts = parseInt(fs.readFileSync(inPath, "utf8").trim(), 10);
+                  if (!isNaN(microWatts) && microWatts >= 0) {
+                    return microWatts / 1e6;
+                  }
+                }
+              }
+            }
+            return 0;
+          };
+
+          const host = readWatt("dc_input") || readWatt("sys_total");
+          const gpu = readWatt("gpu");
+          const cpu = readWatt("cpu_p") + readWatt("cpu_e");
+          if (host > 0 || gpu > 0) {
+            const idleBaseline = Math.max(0, host - gpu - cpu);
+            return {
+              gpuWatts: Number(gpu.toFixed(2)),
+              cpuWatts: Number(cpu.toFixed(2)),
+              idleBaselineWatts: Number(idleBaseline.toFixed(2)),
+              hostWatts: Number((host > 0 ? host : gpu + cpu + idleBaseline).toFixed(2)),
+            };
+          }
+        }
+      }
+    } catch {
+      // Fallback if hwmon sysfs is not accessible or not running on Linux
+    }
+    return null;
+  }
+
+  /**
+   * Fetches the live physical telemetry, preferring native SPBM hwmon sensors
+   * and falling back to the Aitra aggregation metrics endpoint (:18083/metrics).
+   */
+  async fetchLiveTelemetry(modelId?: string): Promise<LiveTelemetrySample | null> {
+    const hwmonSample = this.readSpbmHwmon();
+    if (hwmonSample !== null) {
+      return hwmonSample;
+    }
+
+    try {
+      const resp = await fetch(this.metricsUrl);
+      if (!resp.ok) return null;
+      const text = await resp.text();
+      const lines = text.split("\n");
+      let gpuWatts: number | null = null;
+      for (const line of lines) {
+        if (!line.startsWith("aitra_gpu_power_watts")) continue;
+        if (modelId && line.includes(`gpu_id="${modelId}"`)) {
+          const parts = line.trim().split(/\s+/);
+          const val = parseFloat(parts[parts.length - 1]);
+          if (!isNaN(val) && val >= 0) {
+            gpuWatts = val;
+            break;
+          }
+        } else if (!modelId) {
+          const parts = line.trim().split(/\s+/);
+          const val = parseFloat(parts[parts.length - 1]);
+          if (!isNaN(val) && val >= 0) {
+            gpuWatts = val;
+            break;
+          }
+        }
+      }
+
+      if (gpuWatts !== null) {
+        return {
+          gpuWatts: Number(gpuWatts.toFixed(2)),
+          cpuWatts: 0,
+          idleBaselineWatts: 0,
+          hostWatts: Number(gpuWatts.toFixed(2)),
+        };
+      }
+    } catch {
+      // Silently ignore scrape errors
     }
     return null;
   }

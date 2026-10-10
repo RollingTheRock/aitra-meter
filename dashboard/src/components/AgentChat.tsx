@@ -327,9 +327,7 @@ export function AgentChat({ prompt, events, status, errorMessage, onRun }: Agent
                       background: "#ffffff",
                     }}
                   >
-                    {thoughts.map((t, idx) => (
-                      <div key={idx}>{t.delta}</div>
-                    ))}
+                    {thoughts.map((t) => t.delta).join("")}
                   </div>
                 )}
               </div>
@@ -418,9 +416,7 @@ export function AgentChat({ prompt, events, status, errorMessage, onRun }: Agent
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {messages.map((m, idx) => (
-                    <div key={idx}>{m.delta}</div>
-                  ))}
+                  {messages.map((m) => m.delta).join("")}
                 </div>
               </div>
             )}

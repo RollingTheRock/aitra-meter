@@ -1,0 +1,44 @@
+# BidCore 公网入口网关配置
+{$DOMAIN_OR_PORT::80} {
+    log {
+        output stderr
+        format console
+    }
+
+    # 1. 访问控制：HTTP Basic Auth 网关口令防护 (openlab / openlab)
+    basicauth {
+        openlab $2a$14$1JsT.Ihx.JGuU4iqxnw5juu5bsU57WPYtw3mor9D95j1ZEARUP27G
+    }
+
+    # 2. 报文体大小上限防护（防止超大请求体打满内存）
+    request_body {
+        max_size 1MB
+    }
+
+    # 3. 经过 Tailscale 内网转发至 xpark 算力机
+    handle /api/* {
+        reverse_proxy http://{$XPARK_TAILSCALE_IP:100.124.203.70}:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # 2. WebSocket 长连接穿透
+    handle /ws* {
+        reverse_proxy http://{$XPARK_TAILSCALE_IP:100.124.203.70}:8000
+    }
+
+    # 3. 静态 SPA 托管
+    handle {
+        root * /var/www/aitra-dashboard
+
+        # 缓存控制契约
+        @html path / /index.html
+        header @html Cache-Control "no-cache, no-store, must-revalidate"
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+
+        try_files {path} /index.html
+        file_server
+    }
+}
