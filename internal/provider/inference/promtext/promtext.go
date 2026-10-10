@@ -41,11 +41,15 @@ func Parse(lines []string) map[string][]Sample {
 			continue
 		}
 		name, labels := parts[0], ""
-		if i := strings.Index(name, "{"); i > 0 {
-			if j := strings.LastIndex(name, "}"); j > i {
-				labels = name[i+1 : j]
+		// The label set is scanned from the raw line, not from the first
+		// whitespace-separated field: a quoted label value may itself contain
+		// spaces (e.g. hardware="NVIDIA GB10"), which Fields splits — a
+		// field-boundary scan would then silently drop the whole label set.
+		if i := strings.IndexByte(line, '{'); i > 0 {
+			if j := strings.IndexByte(line[i:], '}'); j > 0 {
+				labels = line[i+1 : i+j]
 			}
-			name = name[:i]
+			name = strings.TrimSpace(line[:i])
 		}
 		val, err := strconv.ParseFloat(parts[len(parts)-1], 64)
 		if err != nil {

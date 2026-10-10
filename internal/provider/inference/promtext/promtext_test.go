@@ -88,6 +88,24 @@ func TestLabelValue(t *testing.T) {
 	}
 }
 
+// A quoted label value may contain spaces — the aggregation service labels
+// hardware="NVIDIA GB10". A Fields-based scan split that series at the space
+// and dropped its label set, so model lookups on the live efficiency gauges
+// returned nothing.
+func TestParseSpacedLabelValue(t *testing.T) {
+	const body = `aitra_j_per_token{attribution_method="direct",hardware="NVIDIA GB10",model="samantha-mistral-7b"} 2.03947963800905`
+	s := Parse(lines(body))["aitra_j_per_token"]
+	if len(s) != 1 {
+		t.Fatalf("got %d series, want 1", len(s))
+	}
+	if got := LabelValue(s[0].Labels, "model"); got != "samantha-mistral-7b" {
+		t.Errorf("model label = %q, want samantha-mistral-7b (spaced label value must not split the series)", got)
+	}
+	if s[0].Value != 2.03947963800905 {
+		t.Errorf("value = %v, want 2.03947963800905", s[0].Value)
+	}
+}
+
 func TestParseSkipsCommentsAndHelp(t *testing.T) {
 	m := Parse(lines(sglangTP4))
 	if len(m) != 1 {
