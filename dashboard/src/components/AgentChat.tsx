@@ -180,51 +180,6 @@ export function AgentChat({ prompt, events, status, errorMessage, onRun }: Agent
               </div>
             </div>
 
-            {/* Quick Install Terminal Strip */}
-            <div
-              style={{
-                background: "var(--aitra-indigo-deep)",
-                borderRadius: "10px",
-                padding: "14px 18px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                color: "#ffffff",
-                boxShadow: "var(--shadow-card)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", overflow: "hidden" }}>
-                <span style={{ color: "var(--aitra-coral)", fontFamily: "var(--font-mono)", fontSize: "12px" }}>$</span>
-                <code
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "11.5px",
-                    color: "#e2e8f0",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  kubectl label node &lt;gpu-node&gt; aitra-ai.github.io/gpu=true && helm repo add aitra
-                </code>
-              </div>
-              <a
-                href="https://github.com/aitra-ai/aitra-meter"
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  fontSize: "11px",
-                  fontFamily: "var(--font-mono)",
-                  color: "#93c5fd",
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  marginLeft: "12px",
-                }}
-              >
-                Full guide →
-              </a>
-            </div>
-
             {/* Quick Benchmark Prompt Templates */}
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono)", color: "var(--ink3)", fontWeight: 600 }}>
