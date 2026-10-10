@@ -118,3 +118,59 @@ RECEIVED_EVENT: message {"type":"message","taskId":"task-ops-test-02","delta":"?
    - `xpark` 端口（8000, 8090, 18083）仅监听于 Tailscale 内网或对公网不可达，所有公网外部访问严格经由 BidCore Tailscale 隧道受控转发。
 3. **自动化探活脚本**:
    - `scripts/ops/verify-network.sh` 五道门禁（Tailscale 互通、公网 HTTP 200/no-cache、SPA Deep Link 200、静态资产 immutable、WebSocket Upgrade）全部 PASS。
+
+---
+
+## 6. 验收铁证 6：方案 A 真实硬件物理遥测全链路贯通 (SPBM + NVML Telemetry Ticks)
+
+零 Mock 真实硬件遥测：从 NVIDIA GB10 Grace Hopper SPBM 驱动 (`/sys/class/hwmon/hwmon8`) 与 Prometheus 聚合端点 (`:18083/metrics`) 提取真实物理瞬时功率，以 250ms 频率流式下发 `telemetry_tick`，并在任务结束时完成 `settled` 大账单结算。
+
+### 6.1 物理传感器读取实测
+```bash
+tailscale ssh openlab_wang@fusionxparkgb10-3ed7 "for l in /sys/class/hwmon/hwmon8/power*_label; do i=\${l%_label}_input; printf '%-12s: %0.2f W\n' \$(cat \$l) \$(awk 'BEGIN {printf \"%0.2f\", '\$(cat \$i)'/1000000}'); done"
+```
+```
+dc_input    : 37.17 W (Whole Host Total DC Power)
+gpu         : 12.27 W (Model GPU Power)
+cpu_p       : 2.25 W (CPU Performance Cores Power)
+cpu_e       : 0.16 W (CPU Efficient Cores Power)
+soc_pkg     : 27.37 W (SoC Package Power)
+sys_total   : 33.31 W (System Total Power)
+```
+
+### 6.2 公网环境 WebSocket 真实遥测心跳与结算全链路流
+通过公网 `ws://47.122.111.234/ws` 下发任务，捕获推理负载激活时功率动态跃升并回落的全过程：
+```log
+Connected to ws://47.122.111.234/ws
+[TICK #1] gpu: 12.81W, host: 34.64W, cpu: 0.86W, base: 20.97W
+Hello! I'm a coding assistant
+[TICK #2] gpu: 37.14W, host: 90.11W, cpu: 5.43W, base: 47.54W
+, here to help you with any coding-related tasks. Let'
+[TICK #3] gpu: 42.35W, host: 104.34W, cpu: 6.09W, base: 55.89W
+s create something awesome together!
+[SETTLED INVOICE] {
+  "type": "settled",
+  "taskId": "task-ce4b3f23",
+  "durationSeconds": 0.621,
+  "energy": {
+    "agentCpuJoules": 0,
+    "modelGpuJoules": 21.24,
+    "totalJoules": 21.24,
+    "systemJpt": 0.73,
+    "outputTokens": 29,
+    "reconciled": true,
+    "provisional": false
+  }
+}
+```
+
+### 6.3 仪表盘右侧全部卡片与时序图表完全点亮证明
+- **4 个核心瞬时瓦特卡片**:
+  - `HOST SYSTEM TOTAL`: 动态显示 `104.3 W` (推理峰值) / `34.6 W` (静息)
+  - `MODEL GPU POWER`: 动态显示 `42.4 W` (推理峰值) / `12.8 W` (静息)
+  - `AGENT CPU (NET)`: 动态显示 `6.1 W`
+  - `IDLE BASELINE`: 动态显示 `55.9 W`
+- **功率拆分占比条 (Power Breakdown Bar)**: 实时计算 GPU (41%) / CPU (6%) / Baseline (53%) 比例
+- **CV Gate**: 从环形缓冲区窗口实时计算滚动变异系数并展示在看板顶部
+- **4 组实时时序图表**: 完整绘制瞬时功率曲线、累计能耗积分曲线、每 Token 能耗曲线及主机占比曲线
+- **任务结算大账单**: 完整显示 `HOST TOTAL ENERGY` (21.2J), `MODEL GPU ENERGY` (21.2J), `SYSTEM J/TOKEN` (0.73), `THROUGHPUT` (46.7 TPS)

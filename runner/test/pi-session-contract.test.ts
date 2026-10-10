@@ -83,6 +83,25 @@ describe("1. PiStreamEventSchema Data Contract", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("validates telemetry_tick event", () => {
+    const event = {
+      type: "telemetry_tick",
+      timestamp: 1728550000000,
+      gpuWatts: 18.5,
+      cpuWatts: 4.2,
+      idleBaselineWatts: 25.0,
+      hostWatts: 47.7,
+    };
+    const parsed = PiStreamEventSchema.safeParse(event);
+    expect(parsed.success).toBe(true);
+
+    const negativeWatts = {
+      ...event,
+      gpuWatts: -5,
+    };
+    expect(PiStreamEventSchema.safeParse(negativeWatts).success).toBe(false);
+  });
+
   it("rejects unknown event type or missing required fields", () => {
     const invalid = {
       type: "random_unknown_type",
@@ -308,6 +327,69 @@ describe("4. MeterBridge LifeCycle & Settled Bill Calculation", () => {
       expect(settled.energy.reconciled).toBe(false);
     } finally {
       mockServer.close();
+    }
+  });
+
+  it("fetches live GPU power telemetry from Prometheus endpoint", async () => {
+    const mockServer = http.createServer((req, res) => {
+      if (req.url === "/metrics") {
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end(
+          '# HELP aitra_gpu_power_watts Current GPU power draw in watts.\n' +
+          '# TYPE aitra_gpu_power_watts gauge\n' +
+          'aitra_gpu_power_watts{gpu_id="samantha-mistral-7b",node="gb10-spark"} 14.85\n' +
+          'aitra_gpu_power_watts{gpu_id="unknown",node="gb10-spark"} 3.58\n'
+        );
+      } else {
+        res.writeHead(404).end();
+      }
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(18094, resolve));
+
+    try {
+      const bridge = new MeterBridge({
+        metricsUrl: "http://127.0.0.1:18094/metrics",
+        hwmonPath: "/nonexistent/hwmon",
+      });
+
+      const sample = await bridge.fetchLiveTelemetry("samantha-mistral-7b");
+      expect(sample).not.toBeNull();
+      expect(sample?.gpuWatts).toBe(14.85);
+      expect(sample?.hostWatts).toBe(14.85);
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("reads physical power channels from SPBM hwmon sysfs", async () => {
+    const tempHwmon = await fs.mkdtemp(path.join(os.tmpdir(), "hwmon-test-"));
+    const spbmDir = path.join(tempHwmon, "hwmon8");
+    await fs.mkdir(spbmDir, { recursive: true });
+
+    await fs.writeFile(path.join(spbmDir, "name"), "spbm\n");
+    await fs.writeFile(path.join(spbmDir, "power1_label"), "dc_input\n");
+    await fs.writeFile(path.join(spbmDir, "power1_input"), "36500000\n"); // 36.5W
+    await fs.writeFile(path.join(spbmDir, "power2_label"), "gpu\n");
+    await fs.writeFile(path.join(spbmDir, "power2_input"), "12250000\n"); // 12.25W
+    await fs.writeFile(path.join(spbmDir, "power3_label"), "cpu_p\n");
+    await fs.writeFile(path.join(spbmDir, "power3_input"), "2100000\n");  // 2.1W
+    await fs.writeFile(path.join(spbmDir, "power4_label"), "cpu_e\n");
+    await fs.writeFile(path.join(spbmDir, "power4_input"), "150000\n");   // 0.15W
+
+    try {
+      const bridge = new MeterBridge({
+        hwmonPath: tempHwmon,
+      });
+
+      const sample = bridge.readSpbmHwmon();
+      expect(sample).not.toBeNull();
+      expect(sample?.hostWatts).toBe(36.5);
+      expect(sample?.gpuWatts).toBe(12.25);
+      expect(sample?.cpuWatts).toBe(2.25);
+      expect(sample?.idleBaselineWatts).toBe(22.0); // 36.5 - 12.25 - 2.25
+    } finally {
+      await fs.rm(tempHwmon, { recursive: true, force: true }).catch(() => {});
     }
   });
 });

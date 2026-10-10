@@ -58,6 +58,7 @@ export async function createServer(
   const clients = new Set<WebSocket>();
   let currentState: RunnerState = "IDLE";
   let activeSession: PiSessionInstance | null = null;
+  let telemetryTimer: NodeJS.Timeout | null = null;
 
   function broadcast(event: PiStreamEvent): void {
     const serialized = JSON.stringify(event);
@@ -66,6 +67,59 @@ export async function createServer(
         ws.send(serialized);
       }
     }
+  }
+
+  function stopTelemetryLoop(): void {
+    if (telemetryTimer) {
+      clearInterval(telemetryTimer);
+      telemetryTimer = null;
+    }
+  }
+
+  function startTelemetryLoop(): void {
+    stopTelemetryLoop();
+
+    // Fire one immediate sample on session start
+    meterBridge.fetchLiveTelemetry().then((sample) => {
+      if (sample && currentState === "SESSION_ACTIVE") {
+        broadcast({
+          type: "telemetry_tick",
+          timestamp: Date.now(),
+          gpuWatts: sample.gpuWatts,
+          cpuWatts: sample.cpuWatts,
+          idleBaselineWatts: sample.idleBaselineWatts,
+          hostWatts: sample.hostWatts,
+        });
+      }
+    }).catch(() => {});
+
+    // Periodic 250ms telemetry ticker
+    let isFetching = false;
+    telemetryTimer = setInterval(async () => {
+      if (currentState !== "SESSION_ACTIVE") {
+        stopTelemetryLoop();
+        return;
+      }
+      if (isFetching) return;
+      isFetching = true;
+      try {
+        const sample = await meterBridge.fetchLiveTelemetry();
+        if (sample && currentState === "SESSION_ACTIVE") {
+          broadcast({
+            type: "telemetry_tick",
+            timestamp: Date.now(),
+            gpuWatts: sample.gpuWatts,
+            cpuWatts: sample.cpuWatts,
+            idleBaselineWatts: sample.idleBaselineWatts,
+            hostWatts: sample.hostWatts,
+          });
+        }
+      } catch {
+        // Silently tolerate transient scrape errors
+      } finally {
+        isFetching = false;
+      }
+    }, 250);
   }
 
   async function handleRunTask(prompt: string, customTaskId?: string): Promise<{ taskId: string }> {
@@ -81,19 +135,40 @@ export async function createServer(
         taskId,
         gatewayBaseUrl,
         meterBridge,
-        onEvent: (event) => {
-          broadcast(event);
+        onEvent: async (event) => {
           if (event.type === "settled") {
+            stopTelemetryLoop();
+            try {
+              const finalSample = await meterBridge.fetchLiveTelemetry();
+              if (finalSample) {
+                broadcast({
+                  type: "telemetry_tick",
+                  timestamp: Date.now(),
+                  gpuWatts: finalSample.gpuWatts,
+                  cpuWatts: finalSample.cpuWatts,
+                  idleBaselineWatts: finalSample.idleBaselineWatts,
+                  hostWatts: finalSample.hostWatts,
+                });
+              }
+            } catch {
+              // Ignore scrape error during settle
+            }
+            broadcast(event);
             currentState = "IDLE";
             activeSession?.dispose();
             activeSession = null;
+          } else {
+            broadcast(event);
           }
         },
       });
 
       currentState = "SESSION_ACTIVE";
+      startTelemetryLoop();
+
       // Execute the prompt asynchronously in the background
       activeSession.prompt(prompt).catch((err) => {
+        stopTelemetryLoop();
         currentState = "FAILED";
         activeSession?.dispose();
         activeSession = null;
@@ -101,6 +176,7 @@ export async function createServer(
 
       return { taskId };
     } catch (err) {
+      stopTelemetryLoop();
       currentState = "FAILED";
       activeSession?.dispose();
       activeSession = null;
@@ -174,6 +250,7 @@ export async function createServer(
     broadcast,
     getState: () => currentState,
     close: async () => {
+      stopTelemetryLoop();
       for (const ws of clients) {
         ws.terminate();
       }

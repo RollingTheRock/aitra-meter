@@ -77,7 +77,10 @@ export function TelemetryDashboard({
   let accumulatedCpuJoules = 0;
 
   const seriesData = telemetryRingBuffer.map((tick, idx) => {
-    const intervalSeconds = 0.5;
+    const intervalSeconds =
+      idx > 0
+        ? Math.max(0.05, (tick.timestamp - telemetryRingBuffer[idx - 1].timestamp) / 1000)
+        : 0.25;
     const power = tick.hostWatts ?? tick.gpuWatts + tick.cpuWatts + tick.idleBaselineWatts;
     accumulatedJoules += power * intervalSeconds;
     accumulatedGpuJoules += tick.gpuWatts * intervalSeconds;

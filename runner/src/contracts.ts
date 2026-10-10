@@ -35,7 +35,16 @@ export const PiStreamEventSchema = z.discriminatedUnion("type", [
     taskId: z.string(),
     delta: z.string(),
   }),
-  // 6. 任务能耗结算大账单 (Task Settled)
+  // 6. 实时遥测心跳 (Realtime Telemetry Tick)
+  z.object({
+    type: z.literal("telemetry_tick"),
+    timestamp: z.number(),
+    gpuWatts: z.number().nonnegative(),
+    cpuWatts: z.number().nonnegative(),
+    idleBaselineWatts: z.number().nonnegative(),
+    hostWatts: z.number().nonnegative().optional(),
+  }),
+  // 7. 任务能耗结算大账单 (Task Settled)
   z.object({
     type: z.literal("settled"),
     taskId: z.string(),
@@ -52,4 +61,14 @@ export const PiStreamEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+export const TelemetryTickSchema = z.object({
+  type: z.literal("telemetry_tick"),
+  timestamp: z.number(),
+  gpuWatts: z.number().nonnegative(),
+  cpuWatts: z.number().nonnegative(),
+  idleBaselineWatts: z.number().nonnegative(),
+  hostWatts: z.number().nonnegative().optional(),
+});
+
+export type TelemetryTick = z.infer<typeof TelemetryTickSchema>;
 export type PiStreamEvent = z.infer<typeof PiStreamEventSchema>;
