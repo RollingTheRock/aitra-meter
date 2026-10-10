@@ -43,6 +43,19 @@ export function TelemetryDashboard({
   const cpuPct = cpuW ? Math.round((cpuW / totalW) * 100) : 0;
   const basePct = hasTelemetry && baseW !== null ? Math.max(0, 100 - gpuPct - cpuPct) : 0;
 
+  // Derived settled metrics aligned with RUNNER-001 & GW-001 / METER-001
+  const settledOutputTokens = settledBill?.tokens?.outputTokens ?? settledBill?.energy.outputTokens ?? 0;
+  const settledPromptTokens = settledBill?.tokens?.promptTokens ?? 0;
+  const settledDuration = settledBill ? settledBill.durationSeconds : 0;
+  const settledTps =
+    settledBill?.tokens?.tps ??
+    (settledDuration > 0 ? settledOutputTokens / settledDuration : 0);
+  const settledSystemJpt = settledBill
+    ? settledBill.energy.systemJpt ?? settledBill.energy.jPerTokenSystem ?? 0
+    : null;
+  const isProvisional = Boolean(settledBill?.energy.provisional);
+  const isReconciled = Boolean(settledBill?.energy.reconciled);
+
   // Rolling Coefficient of Variation (CV) computation from ring buffer
   let rollingCvStr = "--";
   if (telemetryRingBuffer.length >= 3) {
@@ -209,7 +222,7 @@ export function TelemetryDashboard({
             <span className="card-label">SYSTEM J / TOKEN</span>
             <div className="card-val-row">
               <span className="card-val" style={{ color: "var(--aitra-coral)" }}>
-                {settledBill ? settledBill.energy.jPerTokenSystem.toFixed(2) : "--"}
+                {settledSystemJpt !== null ? settledSystemJpt.toFixed(2) : "--"}
               </span>
               <span className="card-unit">J/tok</span>
             </div>
@@ -221,13 +234,13 @@ export function TelemetryDashboard({
             <span className="card-label">THROUGHPUT (TPS)</span>
             <div className="card-val-row">
               <span className="card-val">
-                {settledBill ? settledBill.tokens.tps.toFixed(1) : "--"}
+                {settledBill ? settledTps.toFixed(1) : "--"}
               </span>
               <span className="card-unit">tok/s</span>
             </div>
             <span className="card-sub">
-              {settledBill
-                ? `$${((settledBill.energy.jPerTokenSystem * 0.12) / 3.6).toFixed(3)} / 1M Tok`
+              {settledSystemJpt !== null
+                ? `$${((settledSystemJpt * 0.12) / 3.6).toFixed(3)} / 1M Tok`
                 : "--"}
             </span>
           </div>
@@ -585,13 +598,29 @@ export function TelemetryDashboard({
                   fontFamily: "var(--font-mono)",
                   padding: "3px 8px",
                   borderRadius: "4px",
-                  background: "rgba(16, 185, 129, 0.12)",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                  color: "var(--aitra-emerald)",
+                  background: isProvisional
+                    ? "rgba(245, 158, 11, 0.12)"
+                    : isReconciled
+                    ? "rgba(37, 99, 235, 0.12)"
+                    : "rgba(16, 185, 129, 0.12)",
+                  border: isProvisional
+                    ? "1px solid rgba(245, 158, 11, 0.3)"
+                    : isReconciled
+                    ? "1px solid rgba(37, 99, 235, 0.3)"
+                    : "1px solid rgba(16, 185, 129, 0.3)",
+                  color: isProvisional
+                    ? "#d97706"
+                    : isReconciled
+                    ? "var(--aitra-electric-blue)"
+                    : "var(--aitra-emerald)",
                   fontWeight: 600,
                 }}
               >
-                VERIFIED & ACCREDITED
+                {isProvisional
+                  ? "PROVISIONAL"
+                  : isReconciled
+                  ? "RECONCILED (METER-001 + GW-001)"
+                  : "VERIFIED & ACCREDITED"}
               </span>
             )}
           </div>
@@ -644,7 +673,7 @@ export function TelemetryDashboard({
                       letterSpacing: "-0.03em",
                     }}
                   >
-                    {settledBill.energy.jPerTokenSystem.toFixed(2)}
+                    {settledSystemJpt !== null ? settledSystemJpt.toFixed(2) : "--"}
                   </span>
                   <span style={{ fontSize: "14px", fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
                     J / Token
@@ -666,13 +695,13 @@ export function TelemetryDashboard({
               >
                 <div style={{ padding: "10px 12px", background: "var(--bg-subtle)", borderRadius: "8px" }}>
                   <div style={{ color: "var(--ink3)", marginBottom: "4px" }}>Task Duration</div>
-                  <div style={{ fontWeight: 600, color: "var(--ink)" }}>{settledBill.durationSeconds.toFixed(1)}s</div>
+                  <div style={{ fontWeight: 600, color: "var(--ink)" }}>{settledDuration.toFixed(1)}s</div>
                 </div>
 
                 <div style={{ padding: "10px 12px", background: "var(--bg-subtle)", borderRadius: "8px" }}>
                   <div style={{ color: "var(--ink3)", marginBottom: "4px" }}>Token Count (Prompt / Output)</div>
                   <div style={{ fontWeight: 600, color: "var(--ink)" }}>
-                    {settledBill.tokens.promptTokens} / {settledBill.tokens.outputTokens} ({settledBill.tokens.tps.toFixed(1)} tps)
+                    {settledPromptTokens} / {settledOutputTokens} ({settledTps.toFixed(1)} tps)
                   </div>
                 </div>
 

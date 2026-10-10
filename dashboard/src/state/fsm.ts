@@ -97,7 +97,7 @@ export function createAgentFSM(options?: FSMOptions): AgentFSM {
     // Handle generic error event across any state
     if (event.type === "error") {
       state = "ERROR";
-      errorMessage = event.message;
+      errorMessage = event.error || event.message || "Unknown error";
       events.push(event);
       notify();
       return;

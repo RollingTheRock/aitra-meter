@@ -56,13 +56,36 @@ describe("1. Zod Data Contracts & Schemas", () => {
     expect(parsed.taskId).toBe("task-001");
     expect(parsed.energy.totalJoules).toBe(1825.7);
 
-    // Non-positive duration should fail
+    // Negative duration should fail
     expect(() =>
       TaskSettledBillSchema.parse({
         ...validBill,
-        durationSeconds: 0,
+        durationSeconds: -1,
       })
     ).toThrow();
+  });
+
+  it("validates backend native RUNNER-001 settled event payload", () => {
+    const backendNativeBill = {
+      type: "settled",
+      taskId: "task-runner-001",
+      durationSeconds: 14.2,
+      energy: {
+        agentCpuJoules: 52.4,
+        modelGpuJoules: 1420.0,
+        totalJoules: 1472.4,
+        systemJpt: 3.27,
+        outputTokens: 450,
+        reconciled: true,
+        provisional: false,
+      },
+    };
+    const parsed = TaskSettledBillSchema.parse(backendNativeBill);
+    expect(parsed.taskId).toBe("task-runner-001");
+    expect(parsed.energy.systemJpt).toBe(3.27);
+    expect(parsed.energy.outputTokens).toBe(450);
+    expect(parsed.energy.reconciled).toBe(true);
+    expect(parsed.energy.provisional).toBe(false);
   });
 
   it("discriminates union client events", () => {
@@ -77,12 +100,17 @@ describe("1. Zod Data Contracts & Schemas", () => {
     };
     const errorEvent = {
       type: "error",
+      error: "Runner busy in state SESSION_ACTIVE",
+    };
+    const errorEventWithMessage = {
+      type: "error",
       message: "Gateway timeout",
     };
 
     expect(ClientEventSchema.parse(thoughtEvent).type).toBe("thought");
     expect(ClientEventSchema.parse(toolCallEvent).type).toBe("tool_call");
     expect(ClientEventSchema.parse(errorEvent).type).toBe("error");
+    expect(ClientEventSchema.parse(errorEventWithMessage).type).toBe("error");
 
     expect(() =>
       ClientEventSchema.parse({ type: "unknown_event_type" })
@@ -190,5 +218,14 @@ describe("2. Pure Logic FSM State Transitions", () => {
     fsm.send({ type: "ACK_ERROR" });
     expect(fsm.getState()).toBe("IDLE");
     expect(fsm.getSnapshot().errorMessage).toBeNull();
+
+    // Error event with backend native 'error' field transitions to ERROR
+    fsm.send({ type: "RUN_TASK", taskId: "t-2", prompt: "Test 2" });
+    fsm.send({
+      type: "CLIENT_EVENT",
+      event: { type: "error", error: "Runner is currently busy in state SESSION_ACTIVE" },
+    });
+    expect(fsm.getState()).toBe("ERROR");
+    expect(fsm.getSnapshot().errorMessage).toBe("Runner is currently busy in state SESSION_ACTIVE");
   });
 });
