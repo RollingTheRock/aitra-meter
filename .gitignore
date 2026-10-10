@@ -42,3 +42,6 @@ Thumbs.db
 /build/out/
 __pycache__/
 *.pyc
+
+# Tooling
+.codegraph/
