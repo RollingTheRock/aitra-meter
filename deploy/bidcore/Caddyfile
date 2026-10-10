@@ -1,0 +1,22 @@
+# BidCore 公网入口网关配置
+{$DOMAIN_OR_PORT::80} {
+    # 1. 静态 SPA 托管
+    root * /var/www/aitra-dashboard
+    file_server
+    try_files {path} /index.html
+
+    # 2. 缓存控制契约
+    @html path / /index.html
+    header @html Cache-Control "no-cache, no-store, must-revalidate"
+    @assets path /assets/*
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+
+    # 3. 经过 Tailscale 内网转发至 xpark 算力机
+    reverse_proxy /api/* http://{$XPARK_TAILSCALE_IP:100.124.203.70}:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+    
+    # 4. WebSocket 长连接穿透
+    reverse_proxy /ws http://{$XPARK_TAILSCALE_IP:100.124.203.70}:8000
+}
