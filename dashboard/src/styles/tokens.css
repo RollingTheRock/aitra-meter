@@ -1,0 +1,78 @@
+/* Aitra Design System Tokens - Aligned 100% with aitra.ai light brand aesthetic */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Aitra Official Brand Palette */
+  --aitra-indigo-deep: #1e1b4b;      /* Deep indigo (Headlines, Top Bar, Hero) */
+  --aitra-indigo-btn:  #312e81;      /* Primary button background */
+  --aitra-coral:       #ff6b4d;      /* Vibrant coral orange (Secondary Headline, Accents, Highlights) */
+  --aitra-electric-blue: #2563eb;    /* Electric blue (Links, Badges, GPU Series) */
+  --aitra-emerald:     #10b981;      /* Emerald green (CPU Net Series, Pass status) */
+  --aitra-amber:       #f59e0b;      /* Amber warning (CV Gate Warning) */
+
+  /* Canvas Foundation: Aligned 100% with aitra.ai open-source light theme */
+  --bg:          #f8fafc;            /* Clean soft slate canvas */
+  --bg-page:     #ffffff;            /* Pure white primary workspace */
+  --bg-subtle:   #f1f5f9;            /* Subtle secondary area (terminal/input/boxes) */
+  --bg-card:     #ffffff;            /* Pure white card surface */
+  --card-hover:  #fafafa;            /* Card subtle hover state */
+  
+  /* Typography & Hierarchy */
+  --ink:         #0f172a;            /* Primary heading and main numbers (Slate 900) */
+  --ink2:        #475569;            /* Secondary body text (Slate 600) */
+  --ink3:        #94a3b8;            /* Muted helper text / labels (Slate 400) */
+  
+  /* Hairline Borders & Material */
+  --line:        #e2e8f0;            /* Delicate hairline border (Slate 200) */
+  --line-strong: #cbd5e1;            /* Strong boundary border (Slate 300) */
+  --line-focus:  #2563eb;            /* Focused highlight border */
+  
+  /* Interactive Controls */
+  --btn-primary-bg:  #1e1b4b;        /* Primary action deep indigo button */
+  --btn-primary-ink: #ffffff;
+  --btn-secondary-bg: #ffffff;       /* Secondary outlined button */
+  --btn-secondary-ink: #0f172a;
+  --btn-secondary-line: #cbd5e1;
+  
+  /* Border Radii */
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   14px;
+  
+  /* Spacing & Shadows */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(0, 0, 0, 0.04);
+  --shadow-lg:   0 10px 30px -10px rgba(15, 23, 42, 0.08);
+
+  /* Fonts */
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-ui:      'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:    'Space Mono', 'Courier New', monospace;
+}
+
+/* Global Reset & Typography Baseline */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, .brand-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+code, pre, kbd, .font-mono {
+  font-family: var(--font-mono);
+}

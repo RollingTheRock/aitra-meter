@@ -1,0 +1,151 @@
+/* Clean, spacious layout styles aligned with aitra.ai open-source brand aesthetic */
+
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg);
+}
+
+/* 2-column workspace fixed to viewport height */
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+  max-width: 1680px;
+  width: 100%;
+  margin: 0 auto;
+  height: calc(100vh - 84px);
+  max-height: calc(100vh - 84px);
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  background: #ffffff;
+}
+
+@media (max-width: 1200px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    border-left: none;
+    border-right: none;
+  }
+}
+
+/* Chat & Telemetry Column Containers */
+.workspace-col {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.workspace-col-body {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+/* Telemetry Metric Cards */
+.telemetry-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.telemetry-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.card-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.card-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.card-val {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.card-unit {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--ink3);
+}
+
+.card-sub {
+  font-size: 11.5px;
+  color: var(--ink2);
+}
+
+/* Multi-Chart View Tabs */
+.chart-tab-btn {
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink2);
+  transition: all 0.15s ease;
+}
+
+.chart-tab-btn:hover {
+  color: var(--ink);
+  background: var(--bg-subtle);
+}
+
+.chart-tab-btn.active {
+  background: #ffffff;
+  color: var(--aitra-electric-blue);
+  border-color: var(--line-strong);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Chart Canvas Wrapper */
+.chart-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Sticky Input Dock */
+.chat-input-dock {
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  border-top: 1px solid var(--line);
+  padding: 16px 28px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
