@@ -583,6 +583,7 @@ describe("6. End-to-End Session Execution & Structured Event Stream", () => {
       gatewayBaseUrl: `http://127.0.0.1:${mockPort}`,
       baseDir: tempBase,
       meterBridge,
+      tools: ["read", "bash", "edit", "write"],
       onEvent: (event) => {
         // Validate every event against PiStreamEventSchema
         const validated = PiStreamEventSchema.parse(event);

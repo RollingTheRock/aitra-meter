@@ -16,6 +16,7 @@ export interface CreatePiSessionOptions {
   meterBridge?: MeterBridge;
   onEvent?: (event: PiStreamEvent) => void;
   modelId?: string;
+  tools?: string[];
 }
 
 export interface PiSessionInstance {
@@ -74,6 +75,12 @@ export async function createPiSession(
     retry: { enabled: false },
   });
 
+  const defaultTools =
+    process.env.AITRA_ALLOW_BASH === "true"
+      ? ["read", "bash", "edit", "write"]
+      : ["read", "edit", "write"];
+  const activeTools = options.tools ?? defaultTools;
+
   const { session } = await createAgentSession({
     cwd: envLayout.workspaceDir,
     agentDir: envLayout.homeDir,
@@ -81,7 +88,7 @@ export async function createPiSession(
     modelRuntime,
     sessionManager,
     settingsManager,
-    tools: ["read", "bash", "edit", "write"],
+    tools: activeTools,
   });
 
   const startTime = Date.now();

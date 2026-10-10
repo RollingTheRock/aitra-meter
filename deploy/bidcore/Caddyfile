@@ -5,7 +5,17 @@
         format console
     }
 
-    # 1. 经过 Tailscale 内网转发至 xpark 算力机
+    # 1. 访问控制：HTTP Basic Auth 网关口令防护 (openlab / openlab)
+    basicauth {
+        openlab $2a$14$1JsT.Ihx.JGuU4iqxnw5juu5bsU57WPYtw3mor9D95j1ZEARUP27G
+    }
+
+    # 2. 报文体大小上限防护（防止超大请求体打满内存）
+    request_body {
+        max_size 1MB
+    }
+
+    # 3. 经过 Tailscale 内网转发至 xpark 算力机
     handle /api/* {
         reverse_proxy http://{$XPARK_TAILSCALE_IP:100.124.203.70}:8000 {
             header_up Host {host}

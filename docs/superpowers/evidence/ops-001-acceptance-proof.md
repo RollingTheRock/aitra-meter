@@ -174,3 +174,30 @@ s create something awesome together!
 - **CV Gate**: 从环形缓冲区窗口实时计算滚动变异系数并展示在看板顶部
 - **4 组实时时序图表**: 完整绘制瞬时功率曲线、累计能耗积分曲线、每 Token 能耗曲线及主机占比曲线
 - **任务结算大账单**: 完整显示 `HOST TOTAL ENERGY` (21.2J), `MODEL GPU ENERGY` (21.2J), `SYSTEM J/TOKEN` (0.73), `THROUGHPUT` (46.7 TPS)
+
+---
+
+## 7. 验收铁证 7：三道安全防线生产实测证明 (Basic Auth + Bash RCE 防御 + 1MB 报文限制)
+
+### 7.1 第一道防线：Caddy 网关 HTTP Basic Auth 口令鉴权 (openlab / openlab)
+- **未鉴权外部请求**: 立即返回 `HTTP 401 Unauthorized` (`WWW-Authenticate: Basic realm="restricted"`)，零流量穿透至后方算力机。
+- **未鉴权 WebSocket Upgrade**: 握手直接被 Caddy 拒绝 `HTTP/1.1 401 Unauthorized`。
+- **持凭据访问**: `openlab:openlab` 顺利通过，返回 `HTTP 200 OK`，WebSocket 升级至 `101 Switching Protocols`。
+```bash
+python3 -c "
+import urllib.request, urllib.error
+try:
+    urllib.request.urlopen('http://47.122.111.234/')
+except urllib.error.HTTPError as e:
+    print('UNAUTH:', e.code, e.headers.get('WWW-Authenticate'))
+"
+# 输出: UNAUTH: 401 Basic realm="restricted"
+```
+
+### 7.2 第二道防线：算力机核心守护——关闭未受控 Bash 工具彻底根绝 RCE
+- 在 `runner/src/piSession.ts` 中将 Agent 工具集默认为安全集合 `["read", "edit", "write"]`，公网模式下默认禁用 `bash`。
+- 即使恶意攻击者通过 Prompt Injection 诱导大模型执行宿主机 Shell 指令，Agent 环境因无 `bash` 工具注册而彻底杜绝远程代码执行隐患。
+
+### 7.3 第三道防线：报文体积限制与网络门禁全绿
+- Caddyfile 启用 `request_body { max_size 1MB }` 防护超大报文。
+- `scripts/ops/verify-network.sh` 五道门禁（含 Basic Auth 401 拦截审计与 101 Upgrade 穿透）全部全绿通过。

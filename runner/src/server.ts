@@ -21,6 +21,7 @@ export interface CreateServerOptions {
   metricsUrl?: string;
   meterBridge?: MeterBridge;
   warmupOnStartup?: boolean;
+  allowedTools?: string[];
 }
 
 export interface ServerInstance {
@@ -135,6 +136,7 @@ export async function createServer(
         taskId,
         gatewayBaseUrl,
         meterBridge,
+        tools: options?.allowedTools,
         onEvent: async (event) => {
           if (event.type === "settled") {
             stopTelemetryLoop();
