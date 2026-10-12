@@ -103,7 +103,6 @@ export async function createPiSession(
   // 5. Wire native session event subscription to PiStreamEventSchema
   const unsubscribe = session.subscribe(async (event) => {
     switch (event.type) {
-      case "agent_start":
       case "turn_start": {
         if (meterBridge) {
           await meterBridge.onTurnStart(taskId, process.pid);
@@ -159,14 +158,13 @@ export async function createPiSession(
         });
         break;
       }
-      case "agent_end":
       case "turn_end": {
         if (meterBridge) {
           await meterBridge.onTurnEnd(taskId);
         }
         break;
       }
-      case "agent_settled": {
+      case "agent_end": {
         if (meterBridge) {
           const durationSec = Math.max(0.1, (Date.now() - startTime) / 1000);
           const settledBill = await meterBridge.settleTask(taskId, durationSec);
