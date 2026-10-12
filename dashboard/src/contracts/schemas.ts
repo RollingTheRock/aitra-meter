@@ -8,6 +8,8 @@ export const TelemetryTickSchema = z.object({
   cpuWatts: z.number().nonnegative(), // CPU active net wattage (noise-deducted)
   idleBaselineWatts: z.number().nonnegative(), // Hardware physical idle baseline floor
   hostWatts: z.number().nonnegative().optional(), // Whole-host realtime power (CPU+GPU+Baseline)
+  tps: z.number().nonnegative().optional(), // Instantaneous token throughput (if sampled)
+  jPerToken: z.number().nonnegative().optional(), // Instantaneous Joules per token (if sampled)
 });
 
 export type TelemetryTick = z.infer<typeof TelemetryTickSchema>;

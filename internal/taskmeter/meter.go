@@ -230,3 +230,27 @@ func (m *Meter) List() []TaskBill {
 	sort.Slice(out, func(i, j int) bool { return out[i].LastActivity.After(out[j].LastActivity) })
 	return out
 }
+
+// AddHostEnergy adds attributed host/CPU dynamic joules to a task's energy bill.
+func (m *Meter) AddHostEnergy(taskID string, cpuJoules float64) {
+	if m == nil || cpuJoules <= 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	st, ok := m.tasks[taskID]
+	if !ok {
+		now := time.Now()
+		st = &taskState{
+			TaskBill: TaskBill{TaskID: taskID, StartedAt: now, LastActivity: now, Attribution: "token-share+host-attribution"},
+			byModel:  make(map[string]*ModelUsage),
+		}
+		m.tasks[taskID] = st
+	}
+	if st.SystemJoules == 0 {
+		st.SystemJoules = st.GPUJoules + cpuJoules
+	} else {
+		st.SystemJoules += cpuJoules
+	}
+}
+

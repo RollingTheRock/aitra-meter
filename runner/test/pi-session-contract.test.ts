@@ -221,6 +221,69 @@ describe("4. MeterBridge LifeCycle & Settled Bill Calculation", () => {
     }
   });
 
+  it("contacts task-gateway /cpu/start and /cpu/stop via HttpCpuAttributionSource by default", async () => {
+    const taskId = "task-http-cpu-test";
+    let cpuStartCalled = false;
+    let cpuStopCalled = false;
+    let passedPid = 0;
+
+    const gatewayServer = http.createServer((req, res) => {
+      if (req.method === "POST" && req.url === `/tasks/${taskId}/cpu/start`) {
+        cpuStartCalled = true;
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk;
+        });
+        req.on("end", () => {
+          const parsed = JSON.parse(body || "{}");
+          passedPid = parsed.pid;
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "ok", task_id: taskId, pid: passedPid }));
+        });
+      } else if (req.method === "POST" && req.url === `/tasks/${taskId}/cpu/stop`) {
+        cpuStopCalled = true;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ task_id: taskId, agent_cpu_joules: 18.2 }));
+      } else if (req.url === `/tasks/${taskId}`) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            task_id: taskId,
+            total_calls: 1,
+            output_tokens: 100,
+            gpu_joules: 200.0,
+          })
+        );
+      } else {
+        res.writeHead(404).end();
+      }
+    });
+
+    await new Promise<void>((resolve) => gatewayServer.listen(18095, resolve));
+
+    try {
+      // Constructed WITHOUT cpuAttributionSource option - should default to HttpCpuAttributionSource
+      const bridge = new MeterBridge({
+        gatewayBaseUrl: "http://127.0.0.1:18095",
+      });
+
+      await bridge.onTurnStart(taskId, 9999);
+      expect(cpuStartCalled).toBe(true);
+      expect(passedPid).toBe(9999);
+
+      const turnJoules = await bridge.onTurnEnd(taskId);
+      expect(cpuStopCalled).toBe(true);
+      expect(turnJoules).toBe(18.2);
+
+      const bill = await bridge.settleTask(taskId, 5.0);
+      expect(bill.energy.agentCpuJoules).toBe(18.2);
+      expect(bill.energy.modelGpuJoules).toBe(200.0);
+      expect(bill.energy.totalJoules).toBe(218.2);
+    } finally {
+      gatewayServer.close();
+    }
+  });
+
   it("reconciles provisional cold bill by polling metrics until JPT is available", async () => {
     const taskId = "task-provisional-reconcile";
     let metricsPollCount = 0;

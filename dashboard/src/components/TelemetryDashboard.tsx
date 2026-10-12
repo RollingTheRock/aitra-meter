@@ -86,9 +86,9 @@ export function TelemetryDashboard({
     accumulatedGpuJoules += tick.gpuWatts * intervalSeconds;
     accumulatedCpuJoules += tick.cpuWatts * intervalSeconds;
 
-    // Instantaneous throughput & J/token estimation from window frames
-    const estimatedTps = tick.gpuWatts > 100 ? 32 + (tick.gpuWatts % 10) : 0;
-    const estimatedJpt = estimatedTps > 0 ? power / estimatedTps : 0;
+    // Realtime throughput & J/token from telemetry tick (Zero Mock - no synthetic math)
+    const tickTps = tick.tps ?? 0;
+    const tickJpt = tick.jPerToken ?? (tickTps > 0 ? power / tickTps : 0);
     const hostFraction = power > 0 ? ((power - tick.gpuWatts) / power) * 100 : 0;
 
     return {
@@ -101,8 +101,8 @@ export function TelemetryDashboard({
       totalJoules: accumulatedJoules,
       gpuJoules: accumulatedGpuJoules,
       cpuJoules: accumulatedCpuJoules,
-      tps: estimatedTps,
-      jPerToken: estimatedJpt,
+      tps: tickTps,
+      jPerToken: tickJpt,
       hostFraction,
     };
   });
@@ -490,8 +490,8 @@ export function TelemetryDashboard({
                 </div>
 
                 <div className="chart-box" style={{ height: activeTab === "efficiency" ? "240px" : "150px" }}>
-                  {seriesData.length === 0 ? (
-                    <EmptyChartPlaceholder text="Awaiting token generation stream..." />
+                  {seriesData.length === 0 || !seriesData.some((s) => s.tps > 0 || s.jPerToken > 0) ? (
+                    <EmptyChartPlaceholder text="Awaiting instantaneous token metrics..." />
                   ) : (
                     <svg width="100%" height="100%" viewBox="0 0 500 150" preserveAspectRatio="none">
                       <line x1="0" y1="35" x2="500" y2="35" stroke="#e2e8f0" strokeDasharray="3 3" />

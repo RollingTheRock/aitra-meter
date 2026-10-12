@@ -34,6 +34,43 @@ export interface TaskGatewayBillResponse {
 }
 
 /**
+ * Real HTTP implementation of CpuAttributionSource connecting to task-gateway.
+ */
+export class HttpCpuAttributionSource implements CpuAttributionSource {
+  constructor(private readonly gatewayBaseUrl: string) {}
+
+  async sampleTurnStart(taskId: string, pid: number): Promise<void> {
+    try {
+      const resp = await fetch(`${this.gatewayBaseUrl}/tasks/${taskId}/cpu/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pid }),
+      });
+      if (!resp.ok && resp.status !== 503) {
+        console.warn(`[HttpCpuAttributionSource] turn_start failed for ${taskId}: HTTP ${resp.status}`);
+      }
+    } catch {
+      // Gateway might be unreachable during local test/mock setups
+    }
+  }
+
+  async sampleTurnEnd(taskId: string): Promise<number> {
+    try {
+      const resp = await fetch(`${this.gatewayBaseUrl}/tasks/${taskId}/cpu/stop`, {
+        method: "POST",
+      });
+      if (resp.ok) {
+        const meas = (await resp.json()) as { agent_cpu_joules?: number };
+        return meas.agent_cpu_joules ?? 0;
+      }
+    } catch {
+      // Gateway might be unreachable
+    }
+    return 0;
+  }
+}
+
+/**
  * Bridges Pi agent turns with METER-001 CPU host telemetry and GW-001 task-gateway token billing.
  */
 export class MeterBridge {
@@ -55,7 +92,9 @@ export class MeterBridge {
       options?.hwmonPath ??
       process.env.AITRA_HWMON_PATH ??
       "/sys/class/hwmon";
-    this.cpuSource = options?.cpuAttributionSource;
+    this.cpuSource =
+      options?.cpuAttributionSource ??
+      new HttpCpuAttributionSource(this.gatewayBaseUrl);
     this.reconciliationTimeoutMs = options?.reconciliationTimeoutMs ?? 35_000;
     this.reconciliationPollIntervalMs = options?.reconciliationPollIntervalMs ?? 1_000;
   }
