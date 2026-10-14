@@ -363,9 +363,28 @@ export function AgentChat({ prompt, events, status, errorMessage, onRun }: Agent
                     <Terminal size={14} color="var(--aitra-coral)" />
                     <span>Tool Call: {toolCalls.map((tc) => `${tc.tool} (${tc.arguments.command || ""})`).join(", ")}</span>
                   </div>
-                  <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--aitra-emerald)" }}>
-                    {toolResults.length > 0 ? "exit 0" : "running"}
-                  </span>
+                  {(() => {
+                    if (toolResults.length === 0) {
+                      return (
+                        <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--aitra-amber)" }}>
+                          running
+                        </span>
+                      );
+                    }
+                    const hasError = toolResults.some((tr) => tr.exitCode !== undefined && tr.exitCode !== 0);
+                    const lastExit = toolResults[toolResults.length - 1].exitCode ?? 0;
+                    return (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontFamily: "var(--font-mono)",
+                          color: hasError ? "#ef4444" : "var(--aitra-emerald)",
+                        }}
+                      >
+                        {hasError ? `exit ${lastExit}` : "exit 0"}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 {toolOpen && (

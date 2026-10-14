@@ -500,6 +500,59 @@ describe("5. Fastify + WebSocket Server Contract", () => {
     expect(received[0].type).toBe("thought");
     expect((received[0] as any).delta).toBe("Broadcast test");
   });
+
+  it("broadcasts error event conforming to PiStreamEventSchema", async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    const received: PiStreamEvent[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on("open", () => resolve());
+      ws.on("error", reject);
+      ws.on("message", (data) => {
+        const parsed = JSON.parse(data.toString());
+        received.push(parsed);
+      });
+    });
+
+    serverInstance.broadcast({
+      type: "error",
+      taskId: "task-err-1",
+      error: "Simulated runtime failure",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    ws.close();
+
+    const errEvent = received.find((e) => e.type === "error");
+    expect(errEvent).toBeDefined();
+    expect(errEvent?.type).toBe("error");
+    expect((errEvent as any).error).toBe("Simulated runtime failure");
+  });
+
+  it("handles busy runner error when second task is dispatched concurrently", async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    const received: any[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on("open", () => resolve());
+      ws.on("error", reject);
+      ws.on("message", (data) => {
+        received.push(JSON.parse(data.toString()));
+      });
+    });
+
+    // Start first run
+    ws.send(JSON.stringify({ action: "run", prompt: "first" }));
+    // Immediately attempt second run while busy
+    ws.send(JSON.stringify({ action: "run", prompt: "second" }));
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    ws.close();
+
+    const errEvent = received.find((e) => e.type === "error");
+    expect(errEvent).toBeDefined();
+    expect(errEvent.error).toContain("busy");
+  });
 });
 
 describe("6. End-to-End Session Execution & Structured Event Stream", () => {

@@ -172,14 +172,24 @@ export async function createServer(
       activeSession.prompt(prompt).catch((err) => {
         stopTelemetryLoop();
         currentState = "FAILED";
+        broadcast({
+          type: "error",
+          taskId,
+          error: err?.message ?? "Execution failed",
+        });
         activeSession?.dispose();
         activeSession = null;
       });
 
       return { taskId };
-    } catch (err) {
+    } catch (err: any) {
       stopTelemetryLoop();
       currentState = "FAILED";
+      broadcast({
+        type: "error",
+        taskId,
+        error: err?.message ?? "Execution failed",
+      });
       activeSession?.dispose();
       activeSession = null;
       throw err;

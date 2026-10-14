@@ -43,7 +43,7 @@ async function runModelInference(gatewayBaseUrl: string, taskId: string, modelId
 
 async function main() {
   const taskId = `live-e2e-${Date.now().toString(36)}`;
-  const gatewayBaseUrl = process.env.AITRA_GATEWAY_URL ?? "http://127.0.0.1:8092";
+  const gatewayBaseUrl = process.env.AITRA_GATEWAY_URL ?? "http://127.0.0.1:8090";
   const metricsUrl = process.env.AITRA_METRICS_URL ?? "http://127.0.0.1:18083/metrics";
   const modelId = process.env.AITRA_MODEL_ID ?? "samantha-mistral-7b";
 

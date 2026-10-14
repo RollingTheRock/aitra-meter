@@ -72,6 +72,20 @@ func TestMeter_AddHostEnergy(t *testing.T) {
 	if bill2.SystemJoules != 125.5 {
 		t.Fatalf("expected SystemJoules 125.5 (100 GPU + 25.5 CPU), got %f", bill2.SystemJoules)
 	}
+
+	// Turn 2: verify multi-turn GPU and CPU accumulation does not drop GPUJoules
+	m.Record("task-1", "m1", 10, 50, false)
+	m.AddHostEnergy("task-1", 10.0)
+	bill3, ok := m.Get("task-1")
+	if !ok {
+		t.Fatal("expected task-1 to exist")
+	}
+	if bill3.GPUJoules != 200.0 {
+		t.Fatalf("expected 200.0 GPUJoules, got %f", bill3.GPUJoules)
+	}
+	if bill3.SystemJoules != 235.5 {
+		t.Fatalf("expected SystemJoules 235.5 (200 GPU + 35.5 CPU), got %f", bill3.SystemJoules)
+	}
 }
 
 func TestCPUHandler_StartAndStop(t *testing.T) {

@@ -134,10 +134,14 @@ export class MeterBridge {
     return null;
   }
 
-  /**
-   * Reads hardware power sensors directly from Grace Hopper SPBM hwmon sysfs if available.
-   */
-  readSpbmHwmon(): LiveTelemetrySample | null {
+  private cachedHwmonInputs: Map<string, string> | null = null;
+  private hwmonDiscoveryAttempted = false;
+
+  private discoverSpbmHwmon(): Map<string, string> | null {
+    if (this.hwmonDiscoveryAttempted) {
+      return this.cachedHwmonInputs;
+    }
+    this.hwmonDiscoveryAttempted = true;
     try {
       const base = this.hwmonPath;
       if (!fs.existsSync(base)) return null;
@@ -148,35 +152,59 @@ export class MeterBridge {
         const name = fs.readFileSync(namePath, "utf8").trim().toLowerCase();
         if (name.includes("spbm") || name.includes("spark")) {
           const dirPath = path.join(base, dir);
-          const readWatt = (targetLabel: string): number => {
-            for (let i = 1; i <= 24; i++) {
-              const lblPath = path.join(dirPath, `power${i}_label`);
-              if (fs.existsSync(lblPath) && fs.readFileSync(lblPath, "utf8").trim() === targetLabel) {
-                const inPath = path.join(dirPath, `power${i}_input`);
-                if (fs.existsSync(inPath)) {
-                  const microWatts = parseInt(fs.readFileSync(inPath, "utf8").trim(), 10);
-                  if (!isNaN(microWatts) && microWatts >= 0) {
-                    return microWatts / 1e6;
-                  }
-                }
-              }
+          const map = new Map<string, string>();
+          for (let i = 1; i <= 24; i++) {
+            const lblPath = path.join(dirPath, `power${i}_label`);
+            const inPath = path.join(dirPath, `power${i}_input`);
+            if (fs.existsSync(lblPath) && fs.existsSync(inPath)) {
+              const label = fs.readFileSync(lblPath, "utf8").trim();
+              map.set(label, inPath);
             }
-            return 0;
-          };
-
-          const host = readWatt("dc_input") || readWatt("sys_total");
-          const gpu = readWatt("gpu");
-          const cpu = readWatt("cpu_p") + readWatt("cpu_e");
-          if (host > 0 || gpu > 0) {
-            const idleBaseline = Math.max(0, host - gpu - cpu);
-            return {
-              gpuWatts: Number(gpu.toFixed(2)),
-              cpuWatts: Number(cpu.toFixed(2)),
-              idleBaselineWatts: Number(idleBaseline.toFixed(2)),
-              hostWatts: Number((host > 0 ? host : gpu + cpu + idleBaseline).toFixed(2)),
-            };
           }
+          this.cachedHwmonInputs = map;
+          return map;
         }
+      }
+    } catch {
+      // Fallback
+    }
+    return null;
+  }
+
+  /**
+   * Reads hardware power sensors directly from Grace Hopper SPBM hwmon sysfs if available.
+   * Leverages cached sensor paths to avoid repeated directory scans.
+   */
+  readSpbmHwmon(): LiveTelemetrySample | null {
+    try {
+      const inputMap = this.cachedHwmonInputs ?? this.discoverSpbmHwmon();
+      if (!inputMap || inputMap.size === 0) return null;
+
+      const readWatt = (targetLabel: string): number => {
+        const inPath = inputMap.get(targetLabel);
+        if (!inPath || !fs.existsSync(inPath)) return 0;
+        try {
+          const microWatts = parseInt(fs.readFileSync(inPath, "utf8").trim(), 10);
+          if (!isNaN(microWatts) && microWatts >= 0) {
+            return microWatts / 1e6;
+          }
+        } catch {
+          // Tolerate transient read failure
+        }
+        return 0;
+      };
+
+      const host = readWatt("dc_input") || readWatt("sys_total");
+      const gpu = readWatt("gpu");
+      const cpu = readWatt("cpu_p") + readWatt("cpu_e");
+      if (host > 0 || gpu > 0) {
+        const idleBaseline = Math.max(0, host - gpu - cpu);
+        return {
+          gpuWatts: Number(gpu.toFixed(2)),
+          cpuWatts: Number(cpu.toFixed(2)),
+          idleBaselineWatts: Number(idleBaseline.toFixed(2)),
+          hostWatts: Number((host > 0 ? host : gpu + cpu + idleBaseline).toFixed(2)),
+        };
       }
     } catch {
       // Fallback if hwmon sysfs is not accessible or not running on Linux

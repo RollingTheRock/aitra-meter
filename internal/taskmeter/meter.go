@@ -108,7 +108,9 @@ type taskState struct {
 	byModel map[string]*ModelUsage
 	// provisional is sticky: once any call was booked provisionally the bill
 	// says so even after that call ages out of the bounded breakdown.
-	provisional bool
+	provisional      bool
+	promSystemJoules float64
+	hostJoules       float64
 }
 
 // New creates a Meter reading efficiencies from src.
@@ -154,7 +156,12 @@ func (m *Meter) Record(taskID, model string, promptTokens, outputTokens uint64, 
 	st.PromptTokens += promptTokens
 	st.OutputTokens += outputTokens
 	st.GPUJoules += c.GPUJoules
-	st.SystemJoules += c.SystemJoules
+	st.promSystemJoules += c.SystemJoules
+	if st.promSystemJoules > 0 {
+		st.SystemJoules = st.promSystemJoules + st.hostJoules
+	} else if st.hostJoules > 0 {
+		st.SystemJoules = st.GPUJoules + st.hostJoules
+	}
 	if c.Provisional {
 		st.provisional = true
 	}
@@ -189,6 +196,12 @@ func (m *Meter) billed(st *taskState) TaskBill {
 	}
 	sort.Slice(t.ByModel, func(i, j int) bool { return t.ByModel[i].GPUJoules > t.ByModel[j].GPUJoules })
 	t.Provisional = st.provisional
+
+	if st.promSystemJoules > 0 {
+		t.SystemJoules = st.promSystemJoules + st.hostJoules
+	} else if st.hostJoules > 0 {
+		t.SystemJoules = t.GPUJoules + st.hostJoules
+	}
 
 	j := t.SystemJoules
 	if j == 0 {
@@ -247,10 +260,12 @@ func (m *Meter) AddHostEnergy(taskID string, cpuJoules float64) {
 		}
 		m.tasks[taskID] = st
 	}
-	if st.SystemJoules == 0 {
-		st.SystemJoules = st.GPUJoules + cpuJoules
+	st.hostJoules += cpuJoules
+	st.Attribution = "token-share+host-attribution"
+	if st.promSystemJoules > 0 {
+		st.SystemJoules = st.promSystemJoules + st.hostJoules
 	} else {
-		st.SystemJoules += cpuJoules
+		st.SystemJoules = st.GPUJoules + st.hostJoules
 	}
 }
 

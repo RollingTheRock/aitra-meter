@@ -3,7 +3,7 @@ import { Header } from "./components/Header";
 import { AgentChat } from "./components/AgentChat";
 import { TelemetryDashboard } from "./components/TelemetryDashboard";
 import { createAgentFSM, type AgentFSM, type FSMSnapshot } from "./state/fsm";
-import { createWSClient, type WSClient } from "./services/wsClient";
+import { createWSClient, resolveWsUrl, type WSClient } from "./services/wsClient";
 
 export default function App() {
   const [fsm] = useState<AgentFSM>(() => createAgentFSM({ maxTelemetryPoints: 60, initialState: "DISCONNECTED" }));
@@ -39,18 +39,18 @@ export default function App() {
     // Zero-Mock Invariant: Synthetic telemetry or fake execution loops are strictly banned.
     // If upstream gateway is offline, fail fast loudly at the system boundary.
     if (!wsClient || !wsClient.isConnected()) {
+      const endpoint = resolveWsUrl();
       fsm.send({
         type: "CLIENT_EVENT",
         event: {
           type: "error",
           message:
-            "[Contract Guard · Zero-Mock Policy] Backend telemetry service (ws://127.0.0.1:8000/ws) is currently offline. In accordance with zero-mock invariants, synthetic fallback data is strictly prohibited. Please start the backend runner service and reconnect.",
+            `[Contract Guard · Zero-Mock Policy] Backend telemetry service (${endpoint}) is currently offline. In accordance with zero-mock invariants, synthetic fallback data is strictly prohibited. Please start the backend runner service and reconnect.`,
         },
       });
       return;
     }
 
-    fsm.send({ type: "RUN_TASK", taskId, prompt: promptText });
     wsClient.runTask(promptText, taskId);
   };
 
@@ -67,6 +67,8 @@ export default function App() {
     }
   };
 
+  const targetNode = typeof window !== "undefined" && window.location ? window.location.host : "127.0.0.1:8000";
+
   return (
     <div className="app-root">
       <Header
@@ -74,6 +76,7 @@ export default function App() {
         onToggleWs={handleToggleWs}
         onReset={handleReset}
         status={snapshot.state}
+        targetNode={targetNode}
       />
 
       <div className="workspace-grid">

@@ -8,7 +8,14 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BIDCORE_HOST="${BIDCORE_HOST:-BidCore1}"
 REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_IP="${REMOTE_IP:-47.122.111.234}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/aliyun_ecs.pem}"
+SSH_KEY="${SSH_KEY:-}"
+
+SSH_OPTS=("-o" "StrictHostKeyChecking=no")
+if [[ -n "$SSH_KEY" && -f "$SSH_KEY" ]]; then
+    SSH_OPTS+=("-i" "$SSH_KEY")
+elif [[ -f "$HOME/.ssh/aliyun_ecs.pem" ]]; then
+    SSH_OPTS+=("-i" "$HOME/.ssh/aliyun_ecs.pem")
+fi
 
 echo ">>> [STATE: LOCAL_BUILD] Building dashboard static assets..."
 cd "$REPO_ROOT/dashboard"
@@ -25,10 +32,10 @@ TARGET_SYMLINK="/var/www/aitra-dashboard"
 
 echo ">>> [STATE: RSYNC_TRANSFER] Syncing build assets to $BIDCORE_HOST:$RELEASE_DIR..."
 fab -H "$BIDCORE_HOST" -- "mkdir -p $RELEASE_DIR /var/www/releases /etc/caddy"
-rsync -avz -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" dist/ "$REMOTE_USER@$REMOTE_IP:$RELEASE_DIR/"
+rsync -avz -e "ssh ${SSH_OPTS[*]}" dist/ "$REMOTE_USER@$REMOTE_IP:$RELEASE_DIR/"
 
 echo ">>> [STATE: SYNC_CADDYFILE] Deploying Caddyfile..."
-rsync -avz -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
+rsync -avz -e "ssh ${SSH_OPTS[*]}" \
     "$REPO_ROOT/deploy/bidcore/Caddyfile" "$REMOTE_USER@$REMOTE_IP:/etc/caddy/Caddyfile"
 
 echo ">>> [STATE: ATOMIC_SWAP] Atomically switching active release symlink..."

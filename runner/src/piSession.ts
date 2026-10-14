@@ -22,6 +22,8 @@ export interface CreatePiSessionOptions {
 export interface PiSessionInstance {
   taskId: string;
   workspaceDir: string;
+  homeDir: string;
+  env: Record<string, string>;
   providerBaseUrl: string;
   prompt: (text: string) => Promise<void>;
   dispose: () => void;
@@ -178,6 +180,8 @@ export async function createPiSession(
   return {
     taskId,
     workspaceDir: envLayout.workspaceDir,
+    homeDir: envLayout.homeDir,
+    env: envLayout.env,
     providerBaseUrl,
     prompt: async (text: string) => {
       await session.prompt(text);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Activity,
   CheckCircle2,
@@ -71,6 +71,32 @@ export function TelemetryDashboard({
     }
   }
 
+  // Persistent session energy integration (guarantees accumulation survives 60-point sliding window shift)
+  const sessionTotalJoulesRef = useRef(0);
+  const lastTickTimestampRef = useRef(0);
+
+  useEffect(() => {
+    if (status === "IDLE" || status === "SUBMITTING" || status === "DISCONNECTED") {
+      sessionTotalJoulesRef.current = 0;
+      lastTickTimestampRef.current = 0;
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (latestTelemetry) {
+      const now = latestTelemetry.timestamp;
+      const interval =
+        lastTickTimestampRef.current > 0
+          ? Math.max(0.05, Math.min(1.0, (now - lastTickTimestampRef.current) / 1000))
+          : 0.25;
+      lastTickTimestampRef.current = now;
+      const p =
+        latestTelemetry.hostWatts ??
+        (latestTelemetry.gpuWatts + latestTelemetry.cpuWatts + latestTelemetry.idleBaselineWatts);
+      sessionTotalJoulesRef.current += p * interval;
+    }
+  }, [latestTelemetry]);
+
   // Energy & Series integration over sliding window
   let accumulatedJoules = 0;
   let accumulatedGpuJoules = 0;
@@ -106,6 +132,11 @@ export function TelemetryDashboard({
       hostFraction,
     };
   });
+
+  const displayTotalJoules =
+    settledBill
+      ? settledBill.energy.totalJoules
+      : Math.max(accumulatedJoules, sessionTotalJoulesRef.current);
 
   return (
     <div className="workspace-col">
@@ -438,7 +469,7 @@ export function TelemetryDashboard({
                     </span>
                   </div>
                   <span style={{ fontSize: "10.5px", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
-                    ∑ P(t) · Δt : {accumulatedJoules > 0 ? `${accumulatedJoules.toFixed(0)} J` : "--"}
+                    ∑ P(t) · Δt : {displayTotalJoules > 0 ? `${displayTotalJoules.toFixed(1)} J` : "--"}
                   </span>
                 </div>
 
@@ -452,7 +483,7 @@ export function TelemetryDashboard({
                       <line x1="0" y1="115" x2="500" y2="115" stroke="#e2e8f0" strokeDasharray="3 3" />
 
                       {(() => {
-                        const maxJ = Math.max(100, accumulatedJoules * 1.1);
+                        const maxJ = Math.max(100, Math.max(accumulatedJoules, displayTotalJoules) * 1.1);
                         const scaleY = (j: number) => 140 - (j / maxJ) * 125;
                         const stepX = 500 / Math.max(1, seriesData.length - 1);
 
@@ -490,8 +521,30 @@ export function TelemetryDashboard({
                 </div>
 
                 <div className="chart-box" style={{ height: activeTab === "efficiency" ? "240px" : "150px" }}>
-                  {seriesData.length === 0 || !seriesData.some((s) => s.tps > 0 || s.jPerToken > 0) ? (
-                    <EmptyChartPlaceholder text="Awaiting instantaneous token metrics..." />
+                  {seriesData.length === 0 || (!seriesData.some((s) => s.tps > 0 || s.jPerToken > 0) && !settledBill) ? (
+                    <EmptyChartPlaceholder
+                      text={status === "STREAMING_ACTIVE" ? "Awaiting token completion to compute J/token..." : "Awaiting instantaneous token metrics..."}
+                    />
+                  ) : !seriesData.some((s) => s.tps > 0 || s.jPerToken > 0) && settledBill ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", height: "100%", padding: "0 24px" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--ink3)", letterSpacing: "0.04em" }}>
+                          SETTLED SYSTEM J/TOKEN
+                        </span>
+                        <div style={{ fontSize: "22px", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--aitra-coral)", marginTop: "4px" }}>
+                          {settledSystemJpt ? `${settledSystemJpt.toFixed(2)} J/tok` : "--"}
+                        </div>
+                      </div>
+                      <div style={{ width: "1px", height: "40px", background: "var(--line)" }} />
+                      <div style={{ textAlign: "center" }}>
+                        <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--ink3)", letterSpacing: "0.04em" }}>
+                          SETTLED OUTPUT THROUGHPUT
+                        </span>
+                        <div style={{ fontSize: "22px", fontWeight: 700, fontFamily: "var(--font-mono)", color: "#8b5cf6", marginTop: "4px" }}>
+                          {settledTps > 0 ? `${settledTps.toFixed(1)} tok/s` : "--"}
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     <svg width="100%" height="100%" viewBox="0 0 500 150" preserveAspectRatio="none">
                       <line x1="0" y1="35" x2="500" y2="35" stroke="#e2e8f0" strokeDasharray="3 3" />

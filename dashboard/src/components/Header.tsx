@@ -7,9 +7,10 @@ export interface HeaderProps {
   onToggleWs: () => void;
   onReset: () => void;
   status: string;
+  targetNode?: string;
 }
 
-export function Header({ wsConnected, onToggleWs, onReset, status }: HeaderProps) {
+export function Header({ wsConnected, onToggleWs, onReset, status, targetNode }: HeaderProps) {
   return (
     <header
       style={{
@@ -101,7 +102,7 @@ export function Header({ wsConnected, onToggleWs, onReset, status }: HeaderProps
             }}
           >
             <Server size={13} color="var(--aitra-electric-blue)" />
-            <span>Target Node: {wsConnected ? "127.0.0.1:8000" : "Standalone"}</span>
+            <span>Target Node: {wsConnected ? (targetNode ?? "127.0.0.1:8000") : "Standalone"}</span>
           </div>
 
           {/* FSM Status Indicator */}

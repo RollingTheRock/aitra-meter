@@ -59,6 +59,13 @@ export const PiStreamEventSchema = z.discriminatedUnion("type", [
       provisional: z.boolean().optional(),
     }),
   }),
+  // 8. 运行时异常通知 (Error Event)
+  z.object({
+    type: z.literal("error"),
+    taskId: z.string().optional(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+  }),
 ]);
 
 export const TelemetryTickSchema = z.object({
