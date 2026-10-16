@@ -268,4 +268,3 @@ func (m *Meter) AddHostEnergy(taskID string, cpuJoules float64) {
 		st.SystemJoules = st.GPUJoules + st.hostJoules
 	}
 }
-

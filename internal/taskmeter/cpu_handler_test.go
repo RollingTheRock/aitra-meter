@@ -50,7 +50,6 @@ func (m *mockHostProvider) Name() string {
 	return "mock-host-provider"
 }
 
-
 func TestMeter_AddHostEnergy(t *testing.T) {
 	src := staticSource{"m1": {JPT: 2.0}}
 	m := New(src)

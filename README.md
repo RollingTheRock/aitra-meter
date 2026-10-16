@@ -160,6 +160,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidance.
 - [Troubleshooting](docs/guides/troubleshooting.md)
 - [Build from source and test](docs/demo/DEPLOY_AND_TEST.md)
 - [Demo Details](docs/demo/demo-guide-en.html)
+- [Agent Control Panel Demo](docs/demo/agent-control-panel.md) — interactive agent task execution with SPBM host CPU baseline subtraction & dual-scope energy billing
 
 ### Concepts
 - [Positioning](docs/concepts/positioning.md) — where Aitra Meter fits next to DCGM Exporter, kube-state-metrics, OpenCost, and Kepler
